@@ -1,0 +1,22 @@
+To create a Rust project:
+
+    cargo new PROJECT-NAME
+
+This creates the folder PROJECT-NAME in the current folder.
+
+To build a Rust project:
+
+    cargo build
+
+To run a Rust project:
+
+    cargo run [-- -x OPTION]
+
+To show reference docs:
+
+    cargo doc --open
+
+To clean out project before adding to Git:
+
+    cargo clean
+
