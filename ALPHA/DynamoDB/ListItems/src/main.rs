@@ -4,30 +4,14 @@
  */
 
 use clap::{App, Arg};
-// use serde::{Deserialize, Serialize};
-// use std::collections::HashMap;
 use std::error::Error;
 use std::process;
 
+use dynamodb::model::AttributeValue;
 use dynamodb::operation::Scan;
-use dynamodb::Region; // dynamodb::{Credentials, Endpoint, Region};
+use dynamodb::Region;
+
 use env_logger::Env;
-
-//#[derive(Serialize, Deserialize)]
-//struct TableNames {
-//    names: Vec<String>,
-//}
-
-fn get_value(s: &str) -> &str {
-    let s_len = s.chars().count();
-
-    // If it isn't at least 6 chars long, we cannot chop off the ends
-    if s_len < 6 {
-        s
-    } else {
-        &s[3..s_len]
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -89,11 +73,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for name in output.items.iter() {
         for my_item in name.iter() {
             for (key, value) in my_item {
-                println!("  Key:   {}", key);
-                println!("  Value: {:?}", value);
+                println!("{}", key);
+                match value {
+                    AttributeValue::S(val) => {
+                        println!("  {}", val);
+                    }
+                    _ => {}
+                }
             }
 
-            println!("")
+            println!("");
         }
     }
 
