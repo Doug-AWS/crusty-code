@@ -38,13 +38,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let tables = client.call(op).await?;
 
-    println!("\nTables in {}:\n", region);
+    let mut l = 0;
 
     for name in tables.table_names.iter() {
         for n in name.iter() {
+            l = l + 1;
             println!("    {:?}", n);
         }
     }
+
+    println!("\nFound {} tables in {} region.\n", l, region);
 
     Ok(())
 }
