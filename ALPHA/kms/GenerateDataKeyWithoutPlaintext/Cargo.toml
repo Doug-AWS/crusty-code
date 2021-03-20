@@ -1,9 +1,9 @@
 [package]
-name = "generate-random"
+name = "generate-data-key-without-plaintext"
 version = "0.1.0"
 authors = ["Doug Schwartz <dougsch@amazon.com>"]
 edition = "2018"
-description = "Code example of the KMS GenerateRandom API"
+description = "Code example of the KMS GenerateDataKeyWithoutPlaintex API"
 
 [dependencies]
 kms = { path = "../../../aws-sdk-main-2021-03-02/kms" }

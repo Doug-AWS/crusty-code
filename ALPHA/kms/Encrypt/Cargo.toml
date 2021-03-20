@@ -1,9 +1,9 @@
 [package]
-name = "generate-random"
+name = "encrypt"
 version = "0.1.0"
 authors = ["Doug Schwartz <dougsch@amazon.com>"]
 edition = "2018"
-description = "Code example of the KMS GenerateRandom API"
+description = "Code example of the KMS Encrypt API"
 
 [dependencies]
 kms = { path = "../../../aws-sdk-main-2021-03-02/kms" }
@@ -12,3 +12,6 @@ tokio = { version = "1", features = ["full"]}
 # optional
 env_logger = "0.8.2"
 tracing-subscriber = { version = "0.2.16", features = ["fmt"] }
+clap = { version = "2.33.3" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

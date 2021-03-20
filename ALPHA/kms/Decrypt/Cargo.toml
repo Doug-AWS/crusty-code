@@ -1,9 +1,9 @@
 [package]
-name = "generate-random"
+name = "decrypt"
 version = "0.1.0"
 authors = ["Doug Schwartz <dougsch@amazon.com>"]
 edition = "2018"
-description = "Code example of the KMS GenerateRandom API"
+description = "Code example of the KMS Decrypt API"
 
 [dependencies]
 kms = { path = "../../../aws-sdk-main-2021-03-02/kms" }
