@@ -4,11 +4,11 @@
  */
 
 use clap::{App, Arg};
-// use serde::{Deserialize, Serialize};
-// use std::error::Error;
+
 use std::process;
 
-use kms::operation::GenerateRandom;
+use kms::operation::Encrypt;
+use kms::Blob;
 use kms::Region;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::SubscriberBuilder;
@@ -25,35 +25,38 @@ async fn main() {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("key")
+                .short("k")
+                .long("key")
+                .value_name("KEY")
+                .help("Specifies the encryption key")
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("text")
                 .short("t")
                 .long("text")
                 .value_name("TEXT")
-                .help("Specifies the text to encode")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("key_id")
-                .short("k")
-                .long("key_id")
-                .value_name("KEY-ID")
-                .help("Specifies the name of the key")
+                .help("Specifies the text to encrypt")
                 .takes_value(true),
         )
         .get_matches();
 
     let region = matches.value_of("region").unwrap_or("us-west-2");
-    let text = matches.value_of("text").unwrap_or("");
-    let key_id = matches.value_of("key_id").unwrap_or("");
+    let key = matches.value_of("key").unwrap_or("");
+    let text = matches
+        .value_of("text")
+        .unwrap_or("This is text to encrypt");
 
-    if text == "" || key_id == "" {
-        println!("You must supply text and a key (-t \"TEXT\" -k KEY)");
+    if region == "" || key == "" || text == "" {
+        println!("You must supply a value for region, key, and text (-r REGION -k KEY -t \"TEXT\"");
+
         process::exit(1);
     }
 
     println!("Region: {}", region);
-    println!("Text:  {}", text);
-    println!("Key:    {}", key_id);
+    println!("Key:    {}", key);
+    println!("Text:   {}", text);
 
     SubscriberBuilder::default()
         .with_env_filter("info")
@@ -63,12 +66,21 @@ async fn main() {
 
     let client = aws_hyper::Client::https();
 
-    let data = client
-        .call(GenerateRandom::builder().number_of_bytes(64).build(&config))
+    let blob = Blob::new(text.as_bytes());
+
+    let resp = client
+        .call(
+            Encrypt::builder()
+                .key_id(key)
+                .plaintext(blob)
+                .build(&config),
+        )
         .await
-        .expect("failed to generate random data");
+        .expect("failed to encrypt text");
 
-    println!("{:?}", data);
+    let inner = resp.ciphertext_blob.unwrap();
 
-    assert_eq!(data.plaintext.expect("should have data").as_ref().len(), 64);
+    let bytes = inner.as_ref();
+
+    println!("{:?}", bytes);
 }
