@@ -6,6 +6,7 @@
 use clap::{App, Arg};
 
 use std::process;
+// use std::str;
 
 use kms::operation::Encrypt;
 use kms::Blob;
@@ -82,5 +83,17 @@ async fn main() {
 
     let bytes = inner.as_ref();
 
-    println!("{:?}", bytes);
+    /* Get an error:
+
+    let s = match str::from_utf8(&bytes) {
+        Ok(v) => v,
+        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+    };
+    */
+
+    println!("Bytes: {:?}", bytes);
+
+    let s = String::from_utf8_lossy(bytes);
+
+    println!("String: {:?}", s);
 }

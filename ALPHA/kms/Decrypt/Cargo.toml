@@ -10,5 +10,6 @@ kms = { path = "../../../aws-sdk-main-2021-03-02/kms" }
 aws-hyper = { path = "../../../aws-sdk-main-2021-03-02/aws-hyper" }
 tokio = { version = "1", features = ["full"]}
 # optional
+clap = { version = "2.33.3" }
 env_logger = "0.8.2"
 tracing-subscriber = { version = "0.2.16", features = ["fmt"] }
