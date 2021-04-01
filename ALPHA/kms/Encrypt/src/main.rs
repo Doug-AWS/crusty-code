@@ -6,7 +6,7 @@
 use clap::{App, Arg};
 
 use std::process;
-// use std::str;
+use std::str;
 
 use kms::operation::Encrypt;
 use kms::Blob;
@@ -79,21 +79,29 @@ async fn main() {
         .await
         .expect("failed to encrypt text");
 
-    let inner = resp.ciphertext_blob.unwrap();
+    // Did we get an encrypted blob?
+    match resp.ciphertext_blob {
+        Some(x) => {
+            let bytes = x.as_ref();
+            println!("Bytes: {:?}", bytes);
 
-    let bytes = inner.as_ref();
+            let s = String::from_utf8_lossy(bytes);
+            println!("String: {}", s);
 
-    /* Get an error:
+            // Get an error:
+            //   invalid utf-8 sequence of 1 bytes from index 8', src\main.rs:94:27
+            // It looks like index 8's value is 159, which is well within a U8's range (0-255 if I'm not mistaken).
+            let s2 = match str::from_utf8(bytes) {
+                Ok(v) => v,
+                Err(e) => {
+                    // Barf out index 8
+                    println!("Eighth byte: {:?}", bytes[8]);
+                    panic!("Invalid UTF-8 sequence: {}", e)
+                }
+            };
 
-    let s = match str::from_utf8(&bytes) {
-        Ok(v) => v,
-        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-    };
-    */
-
-    println!("Bytes: {:?}", bytes);
-
-    let s = String::from_utf8_lossy(bytes);
-
-    println!("String: {:?}", s);
+            println!("String: {}", s2);
+        }
+        None => println!("Could not encrypt string"),
+    }
 }
