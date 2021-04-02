@@ -1,0 +1,4 @@
+DynamoDB
+Kinesis
+KMS
+Secrets Manager

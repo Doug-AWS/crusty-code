@@ -212,8 +212,6 @@ dependencies = [
  "clap",
  "env_logger",
  "kms",
- "serde",
- "serde_json",
  "tokio",
  "tracing-subscriber",
 ]
