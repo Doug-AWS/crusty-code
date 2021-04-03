@@ -90,11 +90,10 @@ async fn main() {
         .get_matches();
 
     // Get value of AWS_DEFAULT_REGION, if set.
-    let default_region;
-    match env::var("AWS_DEFAULT_REGION") {
-        Ok(val) => default_region = val,
-        Err(_e) => default_region = "us-west-2".to_string(),
-    }
+    let default_region = match env::var("AWS_DEFAULT_REGION") {
+        Ok(val) => val,
+        Err(_e) => "us-west-2".to_string(),
+    };
 
     let region = matches.value_of("region").unwrap_or(&*default_region);
     let key = matches.value_of("key").expect("marked required in clap");
