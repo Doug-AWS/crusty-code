@@ -107,7 +107,7 @@ async fn main() {
             .with_span_events(FmtSpan::CLOSE)
             .init();
     }
-    // let config = kms::Config::builder().region(Region::from(region)).build();
+
     let config = kms::Config::builder().region(Region::from(region)).build();
 
     let client = kms::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
