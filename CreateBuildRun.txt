@@ -4,6 +4,10 @@ To create a Rust project:
 
 This creates the folder PROJECT-NAME in the current folder.
 
+Copy cargo.toml from a working code example to the PROJECT-NAME folder.
+Update it as necessary.
+If the "cargo build" command fails, you might have to muck with it.
+
 Once in PROJECT-NAME:
 
 To build the project:
