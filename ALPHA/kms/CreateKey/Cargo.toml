@@ -6,8 +6,8 @@ edition = "2018"
 description = "Code example of the KMS CreateKey API"
 
 [dependencies]
-kms = { path = "../../../aws-sdk-main-2021-04-02/kms" }
-aws-hyper = { path = "../../../aws-sdk-main-2021-04-02/aws-hyper" }
+kms = { path = "../../build/aws-sdk/kms" }
+aws-hyper = { path = "../../build/aws-sdk/aws-hyper" }
 tokio = { version = "1", features = ["full"]}
 # optional
 env_logger = "0.8.2"

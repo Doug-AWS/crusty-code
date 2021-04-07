@@ -7,8 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dynamodb = { path = "../../../aws-sdk-main-2021-03-02/dynamodb" }
-aws-hyper = { path = "../../../aws-sdk-main-2021-03-02/aws-hyper"}
+dynamodb = { path = "../../build/dynamodb" }
+aws-hyper = { path = "../../build/aws-hyper"}
 tokio = { version = "1", features = ["full"] }
 
 clap = { version = "2.33.3" }
