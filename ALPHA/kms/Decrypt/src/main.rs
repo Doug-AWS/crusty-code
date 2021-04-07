@@ -62,13 +62,12 @@ async fn main() {
                 .required(true),
         )
         .arg(
-            Arg::with_name("text")
-                .short("t")
-                .long("text")
-                .value_name("TEXT")
-                .help("Specifies file with encrypted text to decrypt")
-                .takes_value(true)
-                .required(true),
+            Arg::with_name("input")
+                .short("i")
+                .long("input")
+                .value_name("INPUT")
+                .help("Specifies the name of the input file with encrypted text to decrypt")
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("verbose")
@@ -87,10 +86,15 @@ async fn main() {
 
     let region = matches.value_of("region").unwrap_or(&*default_region);
     let key = matches.value_of("key").expect("required");
-    let text = matches.value_of("text").expect("required");
+    let input = matches.value_of("input").unwrap_or("input.txt");
     let verbose = matches.is_present("verbose");
 
     if verbose {
+        println!("Running Decrypt with args:");
+        println!("Region:         {}", region);
+        println!("Key ID:         {}", key);
+        println!("Input filename: {}", input);
+        
         SubscriberBuilder::default()
             .with_env_filter("info")
             .with_span_events(FmtSpan::CLOSE)
@@ -101,10 +105,10 @@ async fn main() {
 
     let client = kms::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
-    // Open text file and get contents as a string
+    // Open input text file and get contents as a string
     // input is a base-64 encoded string, so decode it:
-    let data = fs::read_to_string(text)
-        .map(|text| base64::decode(text).expect("invalid base 64"))
+    let data = fs::read_to_string(input)
+        .map(|input| base64::decode(input).expect("invalid base 64"))
         .map(Blob::new);
 
     let resp = match client
