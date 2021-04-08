@@ -1,5 +1,6 @@
 *~
 .vscode
+Cargo.lock
 build/
 target/
 aws-sdk-main-2021*/
