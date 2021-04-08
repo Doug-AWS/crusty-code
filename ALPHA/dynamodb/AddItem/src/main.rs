@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use std::collections::HashMap;
 use std::process;
 
 use dynamodb::model::AttributeValue;
@@ -14,7 +13,6 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "example", about = "An example of StructOpt usage.")]
 struct Opt {
     /// The permission type of the user, standard_user or admin
     #[structopt(short, long)]
@@ -52,7 +50,6 @@ struct Opt {
 #[tokio::main]
 async fn main() {
     let opt = Opt::from_args();
-    // account_type, age, first_name, last_name
 
     if opt.table == ""
         || opt.username == ""
@@ -95,23 +92,26 @@ async fn main() {
 
     let client = dynamodb::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
-    let mut attrs: HashMap<String, AttributeValue> = HashMap::new();
-    let user_av = AttributeValue::S(opt.username.to_string());
-    let type_av = AttributeValue::S(opt.p_type.to_string());
-    let age_av = AttributeValue::S(opt.age.to_string());
-    let first_av = AttributeValue::S(opt.first.to_string());
-    let last_av = AttributeValue::S(opt.last.to_string());
+    let u = &opt.username;
+    let t = &opt.p_type;
+    let a = &opt.age;
+    let f = &opt.first;
+    let l = &opt.last;
 
-    attrs.insert("username".to_owned(), user_av);
-    attrs.insert("account_type".to_owned(), type_av);
-    attrs.insert("age".to_owned(), age_av);
-    attrs.insert("first_name".to_owned(), first_av);
-    attrs.insert("last_name".to_owned(), last_av);
+    let user_av = AttributeValue::S(String::from(u));
+    let type_av = AttributeValue::S(String::from(t));
+    let age_av = AttributeValue::S(String::from(a));
+    let first_av = AttributeValue::S(String::from(f));
+    let last_av = AttributeValue::S(String::from(l));
 
     match client
         .put_item()
         .table_name(opt.table)
-        .item(attrs)
+        .item("username", user_av)
+        .item("account_type", type_av)
+        .item("age", age_av)
+        .item("first_name", first_av)
+        .item("last_name", last_av)
         .send()
         .await
     {

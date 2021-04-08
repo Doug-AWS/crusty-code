@@ -1,5 +1,5 @@
 [package]
-name = "list_items"
+name = "put-item"
 version = "0.1.0"
 authors = ["Doug Schwartz <dougsch@amazon.com>"]
 edition = "2018"
@@ -7,15 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dynamodb = { path = "../../build/dynamodb" }
-aws-hyper = { path = "../../build/aws-hyper"}
+dynamodb = { path = "../../build/aws-sdk/dynamodb" }
+aws-hyper = { path = "../../build/aws-sdk/aws-hyper"}
 tokio = { version = "1", features = ["full"] }
-
-clap = { version = "2.33.3" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-# used only for static endpoint configuration:
-http = "0.2.3"
+structopt = { version = "0.3", default-features = false }
 
 # used only to enable basic logging:
-env_logger = "0.8.2"
+# env_logger = "0.8.2"
+tracing-subscriber = { version = "0.2.16", features = ["fmt"] }
