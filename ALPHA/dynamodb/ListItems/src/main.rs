@@ -50,11 +50,9 @@ async fn main() {
     match client.scan().table_name(String::from(t)).send().await {
         Ok(resp) => {
             println!("Items in table {}", opt.table);
-            //            let mut l = 0;
 
             for item in resp.items.iter() {
                 for n in item.iter() {
-                    //                  l = l + 1;
                     println!("    {:?}", n);
                 }
             }

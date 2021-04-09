@@ -3,62 +3,70 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use clap::{App, Arg};
-
-use std::error::Error;
 use std::process;
 
-use dynamodb::operation::DeleteTable;
 use dynamodb::Region;
 
-use env_logger::Env;
+use structopt::StructOpt;
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::SubscriberBuilder;
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    #[structopt(default_value = "us-west-2", short, long)]
+    region: String,
+
+    /// The table name
+    #[structopt(short, long)]
+    table: String,
+
+    /// Activate verbose mode    
+    #[structopt(short, long)]
+    verbose: bool,
+}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init_from_env(Env::default().default_filter_or("info"));
+async fn main() {
+    let opt = Opt::from_args();
 
-    let matches = App::new("myapp")
-        .arg(
-            Arg::with_name("region")
-                .short("r")
-                .long("region")
-                .value_name("REGION")
-                .help("Specifies the region to create the table in")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("table")
-                .short("t")
-                .long("table")
-                .value_name("TABLE")
-                .help("Specifies the table to create")
-                .takes_value(true),
-        )
-        .get_matches();
-
-    let region = matches.value_of("region").unwrap_or("us-west-2");
-
-    // TABLE AND KEY FOR TESTING ONLY. DELETE BEFORE RELEASING.
-    let table = matches.value_of("table").unwrap_or("users");
-    if table == "" {
-        println!("You must supply a table name");
-        println!("-t TABLE)");
+    if opt.table == "" {
+        println!("\nYou must supply a table name");
+        println!("-t TABLE)\n");
         process::exit(1);
     }
 
-    println!("Region: {}", region);
+    if opt.verbose {
+        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
+        println!("Region: {}", opt.region);
+        println!("Table:  {}", opt.table);
+        //    println!("Key:   {}\n", opt.key);
 
-    println!("DynamoDB client version: {}", dynamodb::PKG_VERSION);
+        SubscriberBuilder::default()
+            .with_env_filter("info")
+            .with_span_events(FmtSpan::CLOSE)
+            .init();
+    }
+
+    let t = &opt.table;
+    let r = &opt.region;
+
     let config = dynamodb::Config::builder()
-        .region(Region::from(region))
+        .region(Region::new(String::from(r)))
         .build();
-    let client = aws_hyper::Client::https();
 
-    let op = DeleteTable::builder().table_name(table).build(&config);
+    let client = dynamodb::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
-    client.call(op).await?;
-
-    println!("Deleted table {}", table);
-
-    Ok(())
+    match client
+        .delete_table()
+        .table_name(String::from(t))
+        .send()
+        .await
+    {
+        Ok(_) => println!("Deleted table {} in region {}", opt.table, opt.region),
+        Err(e) => {
+            println!("Got an error deleting the table:");
+            println!("{:?}", e);
+            process::exit(1);
+        }
+    };
 }
