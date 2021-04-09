@@ -3,51 +3,63 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use clap::{App, Arg};
-use std::error::Error;
+use std::process;
 
-use dynamodb::operation::ListTables;
-use dynamodb::Region; // dynamodb::{Credentials, Endpoint, Region};
-use env_logger::Env;
+use dynamodb::Region;
+
+use structopt::StructOpt;
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::SubscriberBuilder;
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    #[structopt(default_value = "us-west-2", short, long)]
+    region: String,
+
+    #[structopt(short, long)]
+    verbose: bool,
+}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init_from_env(Env::default().default_filter_or("info"));
+async fn main() {
+    let opt = Opt::from_args();
 
-    let matches = App::new("myapp")
-        .arg(
-            Arg::with_name("region")
-                .short("r")
-                .long("region")
-                .value_name("REGION")
-                .help("Specifies the region to create the table in")
-                .takes_value(true),
-        )
-        .get_matches();
+    if opt.verbose {
+        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
+        println!("Region: {}", opt.region);
 
-    let region = matches.value_of("region").unwrap_or("us-west-2");
-    println!("Value for region: {}", region);
-
-    println!("DynamoDB client version: {}", dynamodb::PKG_VERSION);
-    let config = dynamodb::Config::builder()
-        .region(Region::from(region))
-        .build();
-    let client = aws_hyper::Client::https();
-
-    let op = ListTables::builder().build(&config);
-
-    let tables = client.call(op).await?;
-
-    let mut l = 0;
-
-    for name in tables.table_names.iter() {
-        for n in name.iter() {
-            l = l + 1;
-            println!("    {:?}", n);
-        }
+        SubscriberBuilder::default()
+            .with_env_filter("info")
+            .with_span_events(FmtSpan::CLOSE)
+            .init();
     }
 
-    println!("\nFound {} tables in {} region.\n", l, region);
+    let r = &opt.region;
 
-    Ok(())
+    let config = dynamodb::Config::builder()
+        .region(Region::new(String::from(r)))
+        .build();
+
+    let client = dynamodb::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
+
+    match client.list_tables().send().await {
+        Ok(resp) => {
+            println!("Tables in {}", opt.region);
+            let mut l = 0;
+
+            for name in resp.table_names.iter() {
+                for n in name.iter() {
+                    l = l + 1;
+                    println!("    {:?}", n);
+                }
+            }
+
+            println!("\nFound {} tables in {} region.\n", l, opt.region);
+        }
+        Err(e) => {
+            println!("Got an error listing tables:");
+            println!("{:?}", e);
+            process::exit(1);
+        }
+    };
 }
