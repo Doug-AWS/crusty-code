@@ -3,88 +3,66 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use clap::{App, Arg};
-use std::error::Error;
 use std::process;
 
-use dynamodb::model::AttributeValue;
-use dynamodb::operation::Scan;
 use dynamodb::Region;
 
-use env_logger::Env;
+use structopt::StructOpt;
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::SubscriberBuilder;
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    #[structopt(default_value = "us-west-2", short, long)]
+    region: String,
+
+    #[structopt(short, long)]
+    table: String,
+
+    #[structopt(short, long)]
+    verbose: bool,
+}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init_from_env(Env::default().default_filter_or("info"));
+async fn main() {
+    let opt = Opt::from_args();
 
-    let matches = App::new("myapp")
-        .arg(
-            Arg::with_name("region")
-                .short("r")
-                .long("region")
-                .value_name("REGION")
-                .help("Specifies the region to create the table in")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("table")
-                .short("t")
-                .long("table")
-                .value_name("TABLE")
-                .help("Specifies the table to create")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("key")
-                .short("k")
-                .long("key")
-                .value_name("KEY")
-                .help("Specifies the primary key of the table to create")
-                .takes_value(true),
-        )
-        .get_matches();
+    if opt.verbose {
+        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
+        println!("Region: {}", opt.region);
+        println!("Table:  {}", opt.table);
 
-    let region = matches.value_of("region").unwrap_or("us-west-2");
-    let table = matches.value_of("table").unwrap_or("");
-    let key = matches.value_of("key").unwrap_or("");
-
-    if table == "" || key == "" {
-        println!("You must supply a table and key name (-t TABLE -k KEY)");
-        process::exit(1);
+        SubscriberBuilder::default()
+            .with_env_filter("info")
+            .with_span_events(FmtSpan::CLOSE)
+            .init();
     }
 
-    println!("Region: {}", region);
-    println!("Table:  {}", table);
+    let r = &opt.region;
+    let t = &opt.table;
 
-    println!("Value for region: {}", region);
-
-    println!("DynamoDB client version: {}", dynamodb::PKG_VERSION);
     let config = dynamodb::Config::builder()
-        .region(Region::from(region))
+        .region(Region::new(String::from(r)))
         .build();
-    let client = aws_hyper::Client::https();
 
-    let op = Scan::builder().table_name(table).build(&config);
+    let client = dynamodb::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
-    let output = client.call(op).await?;
+    match client.scan().table_name(String::from(t)).send().await {
+        Ok(resp) => {
+            println!("Items in table {}", opt.table);
+            //            let mut l = 0;
 
-    println!("\nItems in table {}:\n", table);
-
-    for name in output.items.iter() {
-        for my_item in name.iter() {
-            for (key, value) in my_item {
-                println!("{}", key);
-                match value {
-                    AttributeValue::S(val) => {
-                        println!("  {}", val);
-                    }
-                    _ => {}
+            for item in resp.items.iter() {
+                for n in item.iter() {
+                    //                  l = l + 1;
+                    println!("    {:?}", n);
                 }
             }
-
-            println!("");
         }
-    }
-
-    Ok(())
+        Err(e) => {
+            println!("Got an error listing items:");
+            println!("{:?}", e);
+            process::exit(1);
+        }
+    };
 }
