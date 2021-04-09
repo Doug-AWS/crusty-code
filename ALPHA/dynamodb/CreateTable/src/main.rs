@@ -3,105 +3,99 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use clap::{App, Arg};
-// use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::process;
 
-use dynamodb::input::create_table_input;
 use dynamodb::model::{
-    AttributeDefinition, /*AttributeValue, */ KeySchemaElement, KeyType,
-    ProvisionedThroughput, ScalarAttributeType, /*TableStatus*/
+    AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType,
 };
-use dynamodb::operation::CreateTable;
+use dynamodb::Region;
 
-use dynamodb::Region; // dynamodb::{Credentials, Endpoint, Region};
-use env_logger::Env;
+use structopt::StructOpt;
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::SubscriberBuilder;
 
-// #[derive(Serialize, Deserialize)]
-// struct TableNames {
-//     names: Vec<String>,
-// }
+#[derive(Debug, StructOpt)]
+struct Opt {
+    #[structopt(default_value = "us-west-2", short, long)]
+    region: String,
 
-fn create_table(table_name: &str, key_name: &str) -> create_table_input::Builder {
-    CreateTable::builder()
-        .table_name(table_name)
-        .key_schema(vec![KeySchemaElement::builder()
-            .attribute_name(key_name)
-            .key_type(KeyType::Hash)
-            .build()])
-        .attribute_definitions(vec![AttributeDefinition::builder()
-            .attribute_name(key_name)
-            .attribute_type(ScalarAttributeType::S)
-            .build()])
-        .provisioned_throughput(
-            ProvisionedThroughput::builder()
-                .read_capacity_units(10)
-                .write_capacity_units(10)
-                .build(),
-        )
+    /// The table name
+    #[structopt(short, long)]
+    table: String,
+
+    /// The region
+    #[structopt(short, long)]
+    key: String,
+
+    /// Activate verbose mode    
+    #[structopt(short, long)]
+    verbose: bool,
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init_from_env(Env::default().default_filter_or("info"));
+async fn main() {
+    let opt = Opt::from_args();
 
-    let matches = App::new("myapp")
-        .arg(
-            Arg::with_name("region")
-                .short("r")
-                .long("region")
-                .value_name("REGION")
-                .help("Specifies the region to create the table in")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("table")
-                .short("t")
-                .long("table")
-                .value_name("TABLE")
-                .help("Specifies the table to create")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("key")
-                .short("k")
-                .long("key")
-                .value_name("KEY")
-                .help("Specifies the primary key of the table to create")
-                .takes_value(true),
-        )
-        .get_matches();
-
-    let region = matches.value_of("region").unwrap_or("us-west-2");
-    let table = matches.value_of("table").unwrap_or("");
-    let key = matches.value_of("key").unwrap_or("");
-
-    if table == "" || key == "" {
-        println!("You must supply a table and key (-t TABLE -k KEY)");
+    if opt.table == "" || opt.key == "" {
+        println!("\nYou must supply a table name and key");
+        println!("-t TABLE -k KEY)\n");
         process::exit(1);
     }
 
-    println!("Region: {}", region);
-    println!("Table:  {}", table);
-    println!("Key:    {}", key);
+    if opt.verbose {
+        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
+        println!("Region: {}", opt.region);
+        println!("Table:  {}", opt.table);
+        println!("Key:   {}\n", opt.key);
 
-    println!("DynamoDB client version: {}", dynamodb::PKG_VERSION);
+        SubscriberBuilder::default()
+            .with_env_filter("info")
+            .with_span_events(FmtSpan::CLOSE)
+            .init();
+    }
+
+    let t = &opt.table;
+    let k = &opt.key;
+    let r = &opt.region;
+
     let config = dynamodb::Config::builder()
-        .region(Region::from(region))
+        .region(Region::new(String::from(r)))
         .build();
 
-    let client = aws_hyper::Client::https();
+    let client = dynamodb::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
-    client
-        .call(create_table(table, key).build(&config))
+    let ad = AttributeDefinition::builder()
+        .attribute_name(String::from(k))
+        .attribute_type(ScalarAttributeType::S)
+        .build();
+
+    let ks = KeySchemaElement::builder()
+        .attribute_name(String::from(k))
+        .key_type(KeyType::Hash)
+        .build();
+
+    let pt = ProvisionedThroughput::builder()
+        .read_capacity_units(10)
+        .write_capacity_units(5)
+        .build();
+
+    match client
+        .create_table()
+        .table_name(String::from(t))
+        .key_schema(ks)
+        .attribute_definitions(ad)
+        .provisioned_throughput(pt)
+        .send()
         .await
-        .expect("failed to create table");
-
-    println!(
-        "Created table {} with key {} in {} region",
-        table, key, region
-    );
-
-    Ok(())
+    {
+        Ok(_) => println!(
+            "Added table {} with key {} in region {}",
+            opt.table, opt.key, opt.region
+        ),
+        Err(e) => {
+            println!("Got an error creating table:");
+            println!("{:?}", e);
+            process::exit(1);
+        }
+    };
 }
