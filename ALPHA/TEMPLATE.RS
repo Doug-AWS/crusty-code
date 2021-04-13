@@ -5,7 +5,7 @@
 
 use std::{env, process};
 
-use dynamodb::Region;
+use SERVICE::{Client, Config, Region};
 
 use structopt::StructOpt;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -38,8 +38,9 @@ async fn main() {
     }
 
     if opt.verbose {
-        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
+        println!("SERVICE client version: {}\n", SERVICE::PKG_VERSION);
         println!("Region: {}", opt.region);
+	// print any other opt settings
 
         SubscriberBuilder::default()
             .with_env_filter("info")
@@ -49,30 +50,29 @@ async fn main() {
 
     let r = &opt.region;
 
-    let config = dynamodb::Config::builder()
+    let config = Config::builder()
         .region(Region::new(String::from(r)))
         .build();
 
-    let client = dynamodb::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
+    let client = Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
-    match client.list_tables().send().await {
+    match client.OPERATION().PARAM(ARG}.send().await {
         Ok(resp) => {
-            println!("Tables in {}", opt.region);
+            println!("SOMETHING in {}", opt.region);
             let mut l = 0;
 
-            for name in resp.table_names.iter() {
-                for n in name.iter() {
+            for name in resp.RESOURCES.iter() {
+                for n in PROPERTY.iter() {
                     l = l + 1;
                     println!("    {:?}", n);
                 }
             }
 
-            println!("\nFound {} tables in {} region.\n", l, opt.region);
+            println!("\nFound {} RESOURCES in {} region.\n", l, opt.region);
         }
         Err(e) => {
-            println!("Got an error listing tables:");
+            println!("Got an error DOING SOMETHING:");
             println!("{:?}", e);
-            process::exit(1);
         }
     };
 }

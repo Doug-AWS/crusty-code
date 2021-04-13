@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use std::{env, process};
+use std::env;
 
-use dynamodb::Region;
+use kinesis::{Client, Config, Region};
 
 use structopt::StructOpt;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -15,6 +15,9 @@ use tracing_subscriber::fmt::SubscriberBuilder;
 struct Opt {
     #[structopt(default_value = "", short, long)]
     region: String,
+
+    #[structopt(short, long)]
+    name: String,
 
     #[structopt(short, long)]
     verbose: bool,
@@ -38,8 +41,9 @@ async fn main() {
     }
 
     if opt.verbose {
-        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
-        println!("Region: {}", opt.region);
+        println!("kinesis client version: {}\n", kinesis::PKG_VERSION);
+        println!("Region:      {}", opt.region);
+        println!("Stream name: {}", opt.name);
 
         SubscriberBuilder::default()
             .with_env_filter("info")
@@ -48,31 +52,19 @@ async fn main() {
     }
 
     let r = &opt.region;
+    let n = &opt.name;
 
-    let config = dynamodb::Config::builder()
+    let config = Config::builder()
         .region(Region::new(String::from(r)))
         .build();
 
-    let client = dynamodb::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
+    let client = Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
-    match client.list_tables().send().await {
-        Ok(resp) => {
-            println!("Tables in {}", opt.region);
-            let mut l = 0;
-
-            for name in resp.table_names.iter() {
-                for n in name.iter() {
-                    l = l + 1;
-                    println!("    {:?}", n);
-                }
-            }
-
-            println!("\nFound {} tables in {} region.\n", l, opt.region);
-        }
+    match client.delete_stream().stream_name(n).send().await {
+        Ok(_) => println!("\nDeleted stream {} from {} region.\n", n, opt.region),
         Err(e) => {
-            println!("Got an error listing tables:");
+            println!("Got an error deleting the stream {}:", n);
             println!("{:?}", e);
-            process::exit(1);
         }
     };
 }
