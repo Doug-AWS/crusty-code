@@ -5,7 +5,7 @@
 
 use std::process;
 
-use SERVICE::{Client, Config, Region};
+use polly::{Client, Config, Region};
 
 use aws_types::region::{EnvironmentProvider, ProvideRegion};
 
@@ -19,7 +19,7 @@ struct Opt {
     #[structopt(short, long)]
     region: Option<String>,
 
-    /// Whether to display additional information
+    /// Activate verbose mode    
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -27,7 +27,6 @@ struct Opt {
 #[tokio::main]
 async fn main() {
     let Opt {
-        name,
         region,
         verbose,
     } = Opt::from_args();
@@ -38,9 +37,8 @@ async fn main() {
         .unwrap_or_else(|| Region::new("us-west-2"));
 
     if verbose {
-        println!("SERVICE client version: {}\n", SERVICE::PKG_VERSION);
+        println!("polly client version: {}\n", polly::PKG_VERSION);
         println!("Region:      {:?}", &region);
-//        println!("Name: {}", &name);
 
         SubscriberBuilder::default()
             .with_env_filter("info")
@@ -48,15 +46,37 @@ async fn main() {
             .init();
     }
 
+//    let r = &opt.region;
+
     let config = Config::builder().region(region).build();
 
     let client = Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
-     match client.OPERATION().PARAM(&name).send().await {
-        Ok(_) => println!("\nPERFORMED OPERATION {} in {:?} region.\n", &name, &region),
+    match client.list_lexicons().send().await {
+        Ok(resp) => {
+            println!("Lexicons:");
+            let mut l = 0;
+
+            for lexicon in resp.lexicons.iter() {
+                for lex in lexicon.iter() {
+                    l += 1;
+                    match &lex.name {
+                        None => {}
+                        Some(x) => println!("  Name:     {}", x),
+                    }
+                    match &lex.attributes {
+                        None => {}
+                        Some(x) => println!("  Language: {:?}\n", x.language_code),
+                    }
+                }
+            }
+
+            println!("\nFound {} lexicons.\n", l);
+        }
         Err(e) => {
-            println!("Got an error PERFORMING OPERATION for name {}:", name);
-            println!("{}", e);
+            println!("Got an error listing lexicons:");
+            println!("{:?}", e);
+            process::exit(1);
         }
     };
 }

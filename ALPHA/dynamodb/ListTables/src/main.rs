@@ -3,9 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use std::{env, process};
+use std::process;
 
-use dynamodb::Region;
+use dynamodb::{Client, Config, Region};
+
+use aws_types::region::{EnvironmentProvider, ProvideRegion};
 
 use structopt::StructOpt;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -13,8 +15,9 @@ use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    #[structopt(default_value = "", short, long)]
-    region: String,
+    /// The region
+    #[structopt(short, long)]
+    region: Option<String>,
 
     #[structopt(short, long)]
     verbose: bool,
@@ -22,24 +25,16 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    let mut opt = Opt::from_args();
+    let Opt { region, verbose } = Opt::from_args();
 
-    let mut default_region = match env::var("AWS_DEFAULT_REGION") {
-        Ok(val) => val,
-        Err(_e) => String::from(""),
-    };
+    let region = EnvironmentProvider::new()
+        .region()
+        .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
+        .unwrap_or_else(|| Region::new("us-west-2"));
 
-    if default_region == "" {
-        default_region = String::from("us-west-2");
-    }
-
-    if opt.region == "" {
-        opt.region = default_region;
-    }
-
-    if opt.verbose {
+    if verbose {
         println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
-        println!("Region: {}", opt.region);
+        println!("Region:      {:?}", &region);
 
         SubscriberBuilder::default()
             .with_env_filter("info")
@@ -47,17 +42,13 @@ async fn main() {
             .init();
     }
 
-    let r = &opt.region;
+    let config = Config::builder().region(region).build();
 
-    let config = dynamodb::Config::builder()
-        .region(Region::new(String::from(r)))
-        .build();
-
-    let client = dynamodb::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
+    let client = Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
 
     match client.list_tables().send().await {
         Ok(resp) => {
-            println!("Tables in {}", opt.region);
+            println!("Tables:");
             let mut l = 0;
 
             for name in resp.table_names.iter() {
@@ -67,7 +58,7 @@ async fn main() {
                 }
             }
 
-            println!("\nFound {} tables in {} region.\n", l, opt.region);
+            println!("\nFound {} tables:\n", l);
         }
         Err(e) => {
             println!("Got an error listing tables:");
