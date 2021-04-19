@@ -62,12 +62,6 @@ async fn main() {
         verbose,
     } = Opt::from_args();
 
-    if table == "" || username == "" || p_type == "" || age == "" || first == "" || last == "" {
-        println!("\nYou must supply a table name, user name, permission type, age, and first and last names");
-        println!("-t TABLE -u USER-NAME -p PERMISSION-TYPE (admin or standard_user) -a AGE -f FIRST-NAME -l LAST-NAME)\n");
-        process::exit(1);
-    }
-
     if p_type != "standard_user" && p_type != "admin" {
         println!("\n{} is not a valid permission type", p_type);
         println!("You must specify a permission type value of 'admin' or 'standard_user':");

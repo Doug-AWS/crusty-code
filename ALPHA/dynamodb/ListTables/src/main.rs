@@ -53,7 +53,7 @@ async fn main() {
 
             for name in resp.table_names.iter() {
                 for n in name.iter() {
-                    l = l + 1;
+                    l += 1;
                     println!("    {:?}", n);
                 }
             }

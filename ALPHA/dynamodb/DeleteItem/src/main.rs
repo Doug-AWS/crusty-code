@@ -47,12 +47,6 @@ async fn main() {
         value,
     } = Opt::from_args();
 
-    if table == "" || key == "" {
-        println!("\nYou must supply a table name and key");
-        println!("-t TABLE -k KEY)\n");
-        process::exit(1);
-    }
-
     let region = EnvironmentProvider::new()
         .region()
         .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
@@ -76,8 +70,8 @@ async fn main() {
 
     match client
         .delete_item()
-        .table_name(String::from(table))
-        .key(String::from(key), AttributeValue::S(String::from(value)))
+        .table_name(table)
+        .key(key, AttributeValue::S(value))
         .send()
         .await
     {
