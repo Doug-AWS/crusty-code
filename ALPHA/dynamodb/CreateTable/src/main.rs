@@ -44,12 +44,6 @@ async fn main() {
         verbose,
     } = Opt::from_args();
 
-    if table == "" || key == "" {
-        println!("\nYou must supply a table name and key");
-        println!("-t TABLE -k KEY)\n");
-        process::exit(1);
-    }
-
     let region = EnvironmentProvider::new()
         .region()
         .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
