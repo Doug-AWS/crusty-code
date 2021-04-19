@@ -1,5 +1,5 @@
 [package]
-name = "delete_stream"
+name = "kinesis-delete-stream"
 version = "0.1.0"
 authors = ["Doug Schwartz <dougsch@amazon.com>"]
 edition = "2018"
