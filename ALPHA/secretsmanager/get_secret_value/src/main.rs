@@ -2,14 +2,14 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0.
  */
-
 use std::process;
 
-use dynamodb::{Client, Config, Region};
+use secretsmanager::{Client, Config, Region};
 
 use aws_types::region::{EnvironmentProvider, ProvideRegion};
 
 use structopt::StructOpt;
+
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::SubscriberBuilder;
 
@@ -19,13 +19,21 @@ struct Opt {
     #[structopt(short, long)]
     region: Option<String>,
 
+    /// The name of the secret
+    #[structopt(short, long)]
+    name: String,
+    /// Whether to display additonal runtime information
     #[structopt(short, long)]
     verbose: bool,
 }
 
 #[tokio::main]
 async fn main() {
-    let Opt { region, verbose } = Opt::from_args();
+    let Opt {
+        name,
+        region,
+        verbose,
+    } = Opt::from_args();
 
     let region = EnvironmentProvider::new()
         .region()
@@ -33,8 +41,12 @@ async fn main() {
         .unwrap_or_else(|| Region::new("us-west-2"));
 
     if verbose {
-        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
+        println!(
+            "SecretsManager client version: {}\n",
+            secretsmanager::PKG_VERSION
+        );
         println!("Region:      {:?}", &region);
+        println!("Secret name: {}", name);
 
         SubscriberBuilder::default()
             .with_env_filter("info")
@@ -43,26 +55,18 @@ async fn main() {
     }
 
     let config = Config::builder().region(region).build();
+    let client = Client::from_conf(config);
 
-    let client = Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
-
-    match client.list_tables().send().await {
+    match client.get_secret_value().secret_id(name).send().await {
         Ok(resp) => {
-            println!("Tables:");
-            let mut l = 0;
-
-            for name in resp.table_names {
-                for n in name {
-                    l += 1;
-                    println!("    {:?}", n);
-                }
-            }
-
-            println!("\nFound {} tables:\n", l);
+            println!(
+                "Value: {}",
+                resp.secret_string.as_deref().unwrap_or("No value!")
+            );
         }
         Err(e) => {
-            println!("Got an error listing tables:");
-            println!("{:?}", e);
+            println!("Got an error listing secrets:");
+            println!("{}", e);
             process::exit(1);
         }
     };

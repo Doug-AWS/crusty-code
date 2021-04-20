@@ -2,14 +2,14 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0.
  */
-
 use std::process;
 
-use dynamodb::{Client, Config, Region};
+use secretsmanager::{Client, Config, Region};
 
 use aws_types::region::{EnvironmentProvider, ProvideRegion};
 
 use structopt::StructOpt;
+
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::SubscriberBuilder;
 
@@ -19,6 +19,7 @@ struct Opt {
     #[structopt(short, long)]
     region: Option<String>,
 
+    /// Whether to display additonal runtime information
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -33,8 +34,11 @@ async fn main() {
         .unwrap_or_else(|| Region::new("us-west-2"));
 
     if verbose {
-        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
-        println!("Region:      {:?}", &region);
+        println!(
+            "SecretsManager client version: {}",
+            secretsmanager::PKG_VERSION
+        );
+        println!("Region: {:?}", &region);
 
         SubscriberBuilder::default()
             .with_env_filter("info")
@@ -43,26 +47,22 @@ async fn main() {
     }
 
     let config = Config::builder().region(region).build();
+    let client = Client::from_conf(config);
 
-    let client = Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
-
-    match client.list_tables().send().await {
+    match client.list_secrets().send().await {
         Ok(resp) => {
-            println!("Tables:");
-            let mut l = 0;
+            println!("Secret names:");
 
-            for name in resp.table_names {
-                for n in name {
-                    l += 1;
-                    println!("    {:?}", n);
-                }
+            let secrets = resp.secret_list.unwrap_or_default();
+            for secret in &secrets {
+                println!("  {}", secret.name.as_deref().unwrap_or_else(|| "No name!"));
             }
 
-            println!("\nFound {} tables:\n", l);
+            println!("Found {} secrets", secrets.len());
         }
         Err(e) => {
-            println!("Got an error listing tables:");
-            println!("{:?}", e);
+            println!("Got an error listing secrets:");
+            println!("{}", e);
             process::exit(1);
         }
     };
