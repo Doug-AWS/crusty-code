@@ -80,11 +80,9 @@ async fn main() {
             .init();
     }
 
-    //    let r = &region;
-
     let config = Config::builder().region(region).build();
 
-    let client = kms::Client::from_conf_conn(config, aws_hyper::conn::Standard::https());
+    let client = kms::Client::from_conf(config);
 
     let blob = Blob::new(text.as_bytes());
 
@@ -106,11 +104,11 @@ async fn main() {
 
     let s = base64::encode(&bytes);
 
-    let o = &out;
-
-    let mut ofile = File::create(o).expect("unable to create file");
+    let mut ofile = File::create(&out).expect("unable to create file");
     ofile.write_all(s.as_bytes()).expect("unable to write");
 
-    println!("Wrote the following to {}", out);
-    println!("{}", s);
+    if verbose {
+        println!("Wrote the following to {}", &out);
+        println!("{}", s);
+    }
 }
