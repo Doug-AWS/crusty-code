@@ -32,6 +32,19 @@ struct Opt {
     verbose: bool,
 }
 
+/// Adds a record to an Amazon Kinesis data stream.
+/// [Duck Duck Go](https://duckduckgo.com)
+/// See [PutRecord] (https://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecord.html)
+/// in the Amazon Kinesis Streams API reference for further information.
+/// # Arguments
+///
+/// * `-d DATA` - The data (text) to put into the record.
+/// * `-k KEY` - The shard in the stream to which the data record is assigned.
+/// * `-n NAME` - The name of the stream.
+/// * `[-r REGION]` - The region containing the stream.
+///   If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+///   If the environment variable is not set, defaults to **us-west-2**.
+/// * `[-v]` - Whether to display additional information.
 #[tokio::main]
 async fn main() {
     let Opt {
@@ -65,8 +78,8 @@ async fn main() {
 
     let client = Client::from_conf(config);
 
-    // data is a Base64-encoded binary data object
-    let data = base64::encode(data);
+    // blob is a Base64-encoded binary data object
+    //    let data = base64::encode(data);
     let blob = kinesis::Blob::new(data);
 
     match client
