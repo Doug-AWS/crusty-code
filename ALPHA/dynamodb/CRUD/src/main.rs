@@ -5,19 +5,32 @@
 
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use std::io::{stdin, /*stdout,*/ Read /*, Write*/};
+use std::io::{stdin, Read};
+use std::time::Duration;
 use std::{iter, process};
 
-use std::{thread, time};
+use aws_http::AwsErrorRetryPolicy;
+use aws_hyper::{SdkError, SdkSuccess};
+
+use dynamodb::error::DescribeTableError;
+
+use dynamodb::input::DescribeTableInput;
 
 use dynamodb::model::{
     AttributeDefinition, AttributeValue, KeySchemaElement, KeyType, ProvisionedThroughput,
-    ScalarAttributeType, Select,
+    ScalarAttributeType, Select, TableStatus,
 };
+
+use dynamodb::operation::DescribeTable;
+use dynamodb::output::DescribeTableOutput;
 
 use dynamodb::{Client, Config, Region};
 
 use aws_types::region::{EnvironmentProvider, ProvideRegion};
+
+use smithy_http::operation::Operation;
+use smithy_http::retry::ClassifyResponse;
+use smithy_types::retry::RetryKind;
 
 use structopt::StructOpt;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -244,75 +257,70 @@ async fn delete_table(client: &dynamodb::Client, table: &str) {
     }
 }
 
-/// Wait 1, 2, 4, ... seconds for the table to exist.
-async fn wait_for_table(client: &dynamodb::Client, table: &str) {
-    let mut delay = 10;
-    let mut total = delay;
+/// Hand-written waiter to retry every second until the table is out of `Creating` state
+#[derive(Clone)]
+struct WaitForReadyTable<R> {
+    inner: R,
+}
 
-    println!(
-        "Waiting {} seconds for {} table to finish creation",
-        delay, table
-    );
-    println!();
-
-    // Sleep one second by default
-    // Wait for delay seconds and try again
-    thread::sleep(time::Duration::from_secs(delay));
-
-    loop {
-        match client.describe_table().table_name(table).send().await {
-            Ok(resp) => {
-                match resp.table {
-                    None => {
-                        println!("Waiting {} second(s)", delay);
-                        total += delay;
-                        // Wait for delay seconds and try again
-                        thread::sleep(time::Duration::from_secs(delay));
-                        delay = delay * 2;
-                    }
-                    Some(t) => {
-                        match t.table_name {
-                            None => {
-                                println!("Waiting {} second(s)", delay);
-                                total += delay;
-                                // Wait for delay seconds and try again
-                                thread::sleep(time::Duration::from_secs(delay));
-                                delay = delay * 2;
-                            }
-                            Some(t) => {
-                                if t == table {
-                                    println!("Waited {} second(s)", total);
-                                    return;
-                                } else {
-                                    println!("Waiting {} second(s)", delay);
-                                    total += delay;
-                                    // Wait for delay seconds and try again
-                                    thread::sleep(time::Duration::from_secs(delay));
-                                    delay = delay * 2;
-                                }
-                            }
-                        }
-                    }
+impl<R> ClassifyResponse<SdkSuccess<DescribeTableOutput>, SdkError<DescribeTableError>>
+    for WaitForReadyTable<R>
+where
+    R: ClassifyResponse<SdkSuccess<DescribeTableOutput>, SdkError<DescribeTableError>>,
+{
+    fn classify(
+        &self,
+        response: Result<&SdkSuccess<DescribeTableOutput>, &SdkError<DescribeTableError>>,
+    ) -> RetryKind {
+        match self.inner.classify(response) {
+            RetryKind::NotRetryable => (),
+            other => return other,
+        };
+        match response {
+            Ok(SdkSuccess { parsed, .. }) => {
+                if parsed
+                    .table
+                    .as_ref()
+                    .unwrap()
+                    .table_status
+                    .as_ref()
+                    .unwrap()
+                    == &TableStatus::Creating
+                {
+                    RetryKind::Explicit(Duration::from_secs(1))
+                } else {
+                    RetryKind::NotRetryable
                 }
             }
-            Err(e) => {
-                println!("Got an error listing tables:");
-                println!("{}", e);
-                process::exit(1);
-            }
+            _ => RetryKind::NotRetryable,
         }
     }
 }
 
 /// Wait for the user to press Enter.
 fn pause() {
-    //let mut stdout = stdout();
     println!();
-    //    stdout.write(b"Press Enter to continue...").unwrap();
     println!("Press Enter to continue");
-    //    stdout.flush().unwrap();
     println!();
     stdin().read(&mut [0]).unwrap();
+}
+
+/// Construct a `DescribeTable` request with a policy to retry every second until the table
+/// is ready
+fn wait_for_ready_table(
+    table_name: &str,
+    conf: &Config,
+) -> Operation<DescribeTable, WaitForReadyTable<AwsErrorRetryPolicy>> {
+    let operation = DescribeTableInput::builder()
+        .table_name(table_name)
+        .build(&conf)
+        //.expect("valid input")
+        //.make_operation(&conf)
+        .expect("valid operation");
+    let waiting_policy = WaitForReadyTable {
+        inner: operation.retry_policy().clone(),
+    };
+    operation.with_retry_policy(waiting_policy)
 }
 
 #[tokio::main]
@@ -365,7 +373,16 @@ async fn main() {
     println!("Creating table {} in {:?}", table, r);
     create_table(&client, &table, &key).await;
 
-    wait_for_table(&client, &table).await;
+    println!("Waiting for table to be ready");
+
+    let raw_client = aws_hyper::Client::https();
+
+    raw_client
+        .call(wait_for_ready_table(&table, client.conf()))
+        .await
+        .expect("table should become ready");
+
+    println!("Table is now ready to use");
 
     if interactive {
         pause();
