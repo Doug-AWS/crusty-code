@@ -87,7 +87,7 @@ async fn create_table(client: &dynamodb::Client, table: &str, key: &str) {
         .send()
         .await
     {
-        Ok(_) => println!(""),
+        Ok(_) => println!(),
         Err(e) => {
             println!("Got an error creating the table:");
             println!("{}", e);
@@ -96,27 +96,30 @@ async fn create_table(client: &dynamodb::Client, table: &str, key: &str) {
     }
 }
 
+/// For add_item and scan_item
+#[derive(Clone)]
+struct Item {
+    table: String,
+    key: String,
+    value: String,
+    first_name: String,
+    last_name: String,
+    age: String,
+    utype: String,
+}
+
 /// Add an item to the table.
-async fn add_item(
-    client: &dynamodb::Client,
-    table: &str,
-    key: &str,
-    value: &str,
-    first_name: &str,
-    last_name: &str,
-    age: &str,
-    utype: &str,
-) {
-    let user_av = AttributeValue::S(String::from(value));
-    let type_av = AttributeValue::S(String::from(utype));
-    let age_av = AttributeValue::S(String::from(age));
-    let first_av = AttributeValue::S(String::from(first_name));
-    let last_av = AttributeValue::S(String::from(last_name));
+async fn add_item(client: &dynamodb::Client, item: Item) {
+    let user_av = AttributeValue::S(String::from(item.value));
+    let type_av = AttributeValue::S(String::from(item.utype));
+    let age_av = AttributeValue::S(String::from(item.age));
+    let first_av = AttributeValue::S(String::from(item.first_name));
+    let last_av = AttributeValue::S(String::from(item.last_name));
 
     match client
         .put_item()
-        .table_name(table)
-        .item(key, user_av)
+        .table_name(item.table)
+        .item(item.key, user_av)
         .item("account_type", type_av)
         .item("age", age_av)
         .item("first_name", first_av)
@@ -124,7 +127,7 @@ async fn add_item(
         .send()
         .await
     {
-        Ok(_) => println!(""),
+        Ok(_) => println!(),
         Err(e) => {
             println!("Got an error adding item to table:");
             println!("{}", e);
@@ -134,30 +137,23 @@ async fn add_item(
 }
 
 /// Scan the table for an item matching the input values.
-async fn scan(
-    client: &dynamodb::Client,
-    table: &str,
-    key: &str,
-    value: &str,
-    first_name: &str,
-    last_name: &str,
-    age: &str,
-    utype: &str,
-) {
-    let user_av = AttributeValue::S(String::from(value));
-    let type_av = AttributeValue::S(String::from(utype));
-    let age_av = AttributeValue::S(String::from(age));
-    let first_av = AttributeValue::S(String::from(first_name));
-    let last_av = AttributeValue::S(String::from(last_name));
+async fn scan(client: &dynamodb::Client, item: Item) {
+    let user_av = AttributeValue::S(String::from(item.value));
+    let type_av = AttributeValue::S(String::from(item.utype));
+    let age_av = AttributeValue::S(String::from(item.age));
+    let first_av = AttributeValue::S(String::from(item.first_name));
+    let last_av = AttributeValue::S(String::from(item.last_name));
 
     let mut found_match = true;
 
     let resp = client
         .scan()
-        .table_name(table)
+        .table_name(item.table)
         .select(Select::AllAttributes)
         .send()
         .await;
+
+    let key = &item.key;
 
     match resp {
         Ok(r) => {
@@ -236,7 +232,7 @@ async fn delete_item(client: &dynamodb::Client, table: &str, key: &str, value: &
         .send()
         .await
     {
-        Ok(_) => println!(""),
+        Ok(_) => println!(),
         Err(e) => {
             println!("Got an error trying to delete item:");
             println!("{}", e);
@@ -248,7 +244,7 @@ async fn delete_item(client: &dynamodb::Client, table: &str, key: &str, value: &
 /// Delete the table.
 async fn delete_table(client: &dynamodb::Client, table: &str) {
     match client.delete_table().table_name(table).send().await {
-        Ok(_) => println!(""),
+        Ok(_) => println!(),
         Err(e) => {
             println!("Got an error deleting table:");
             println!("{}", e);
@@ -302,7 +298,7 @@ fn pause() {
     println!();
     println!("Press Enter to continue");
     println!();
-    stdin().read(&mut [0]).unwrap();
+    stdin().read_exact(&mut [0]).unwrap();
 }
 
 /// Construct a `DescribeTable` request with a policy to retry every second until the table
@@ -348,7 +344,7 @@ async fn main() {
     // Specify first name, last name, age, and type
     let first_name = "DummyFirstName";
     let last_name = "DummyLastName";
-    let mut age = "33";
+    let age = "33";
     let utype = "standard_user";
 
     if verbose {
@@ -365,8 +361,7 @@ async fn main() {
 
     let r = region.clone();
 
-    let config = Config::builder().region(region).build();
-    let client = Client::from_conf(config);
+    let client = Client::from_env();
 
     /* Create table */
     println!();
@@ -391,38 +386,28 @@ async fn main() {
     println!();
     println!("Adding item to table");
 
-    add_item(
-        &client,
-        &table,
-        &key,
-        &value,
-        &first_name,
-        &last_name,
-        &age,
-        &utype,
-    )
-    .await;
+    let mut item = Item {
+        table: table.clone(),
+        key: key.clone(),
+        value: value.clone(),
+        first_name: first_name.to_string(),
+        last_name: last_name.to_string(),
+        age: age.to_string(),
+        utype: utype.to_string(),
+    };
+
+    add_item(&client, item.clone()).await;
 
     if interactive {
         pause();
     }
 
-    age = "44";
+    item.age = "44".to_string();
 
     /* Update the item */
     println!("Modifying table item");
 
-    add_item(
-        &client,
-        &table,
-        &key,
-        &value,
-        &first_name,
-        &last_name,
-        &age,
-        &utype,
-    )
-    .await;
+    add_item(&client, item.clone()).await;
 
     if interactive {
         pause();
@@ -431,17 +416,7 @@ async fn main() {
     /* Get item and compare it with the one we added */
     println!("Comparing table item to original value");
 
-    scan(
-        &client,
-        &table,
-        &key,
-        &value,
-        &first_name,
-        &last_name,
-        &age,
-        &utype,
-    )
-    .await;
+    scan(&client, item).await;
 
     if interactive {
         pause();

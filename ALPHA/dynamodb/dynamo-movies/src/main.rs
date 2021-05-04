@@ -5,6 +5,7 @@
 
 use aws_http::AwsErrorRetryPolicy;
 use aws_hyper::{SdkError, SdkSuccess};
+use aws_types::region::{EnvironmentProvider, ProvideRegion};
 use dynamodb::client::fluent_builders::Query;
 use dynamodb::error::DescribeTableError;
 use dynamodb::input::DescribeTableInput;
@@ -22,6 +23,15 @@ use smithy_types::retry::RetryKind;
 use std::collections::HashMap;
 use std::time::Duration;
 
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    /// The region
+    #[structopt(short, long)]
+    region: Option<String>,
+}
+
 /// A partial reimplementation of https://docs.amazonaws.cn/en_us/amazondynamodb/latest/developerguide/GettingStarted.Ruby.html
 /// in Rust
 ///
@@ -32,9 +42,14 @@ use std::time::Duration;
 #[tokio::main]
 async fn main() {
     let table_name = "dynamo-movies-example";
-    let conf = dynamodb::Config::builder()
-        .region(Region::new("us-east-1"))
-        .build();
+    let Opt { region } = Opt::from_args();
+
+    let region = EnvironmentProvider::new()
+        .region()
+        .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
+        .unwrap_or_else(|| Region::new("us-east-1"));
+
+    let conf = dynamodb::Config::builder().region(region).build();
     let conn = aws_hyper::conn::Standard::https();
     let client = dynamodb::Client::from_conf_conn(conf, conn);
     let raw_client = aws_hyper::Client::https();
@@ -52,21 +67,18 @@ async fn main() {
         .contains(&table_name.to_string());
 
     if !table_exists {
-        println!("Table does not exist, creating it");
         create_table(&client, table_name)
             .send()
             .await
             .expect("failed to create table");
-
-        println!("Waiting for table to be ready");
-
-        raw_client
-            .call(wait_for_ready_table(table_name, client.conf()))
-            .await
-            .expect("table should become ready");
-    } else {
-        println!("Table exists");
     }
+
+    println!("Waiting for table to be ready");
+
+    raw_client
+        .call(wait_for_ready_table(table_name, client.conf()))
+        .await
+        .expect("table should become ready");
 
     println!("Testing table");
 
