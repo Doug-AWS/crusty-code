@@ -5,7 +5,7 @@
 
 use aws_http::AwsErrorRetryPolicy;
 use aws_hyper::{SdkError, SdkSuccess};
-use aws_types::region::{EnvironmentProvider, ProvideRegion};
+use aws_types::region::ProvideRegion;
 use dynamodb::client::fluent_builders::Query;
 use dynamodb::error::DescribeTableError;
 use dynamodb::input::DescribeTableInput;
@@ -27,9 +27,9 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The region
+    /// The region. Overrides environment variable AWS_DEFAULT_REGION.
     #[structopt(short, long)]
-    region: Option<String>,
+    default_region: Option<String>,
 }
 
 /// A partial reimplementation of https://docs.amazonaws.cn/en_us/amazondynamodb/latest/developerguide/GettingStarted.Ruby.html
@@ -42,12 +42,13 @@ struct Opt {
 #[tokio::main]
 async fn main() {
     let table_name = "dynamo-movies-example";
-    let Opt { region } = Opt::from_args();
+    let Opt { default_region } = Opt::from_args();
 
-    let region = EnvironmentProvider::new()
-        .region()
-        .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
-        .unwrap_or_else(|| Region::new("us-east-1"));
+    let region = default_region
+        .as_ref()
+        .map(|region| Region::new(region.clone()))
+        .or_else(|| aws_types::region::default_provider().region())
+        .unwrap_or_else(|| Region::new("us-west-2"));
 
     let conf = dynamodb::Config::builder().region(region).build();
     let conn = aws_hyper::conn::Standard::https();
