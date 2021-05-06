@@ -37,7 +37,7 @@ struct Opt {
 /// * `-c CONTENT` - The content of the record.
 /// * `-k KEY` - The content of the record.
 /// * `-n NAME` - The name of the data stream.
-/// * `[-d DEFAULT-REGION]` - The region in which the table is created.
+/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
 ///   If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.

@@ -59,7 +59,7 @@ struct Opt {
 /// * `-a AGE` - The age of the user.
 /// * `-f FIRST` - The first name of the user.
 /// * `-l LAST` - The last name of the user.
-/// * `[-r REGION]` - The region in which the table is created.
+/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
 ///   If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.

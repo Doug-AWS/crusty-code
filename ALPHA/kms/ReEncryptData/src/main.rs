@@ -46,7 +46,7 @@ struct Opt {
 /// * `[-n NEW-KEY]` - The new key used to re-encrypt the string.
 /// * `[-i INPUT-FILE]` - The file containing the encrypted string.
 /// * `[-o OUTPUT-FILE]` - The file containing the re-encrypted string.
-/// * `[-d DEFAULT-REGION]` - The region in which the stream is created.
+/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
 ///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.

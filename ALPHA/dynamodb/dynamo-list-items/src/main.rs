@@ -29,7 +29,7 @@ struct Opt {
 /// Lists the items in an Amazon DynamoDB table.
 /// # Arguments
 /// * `-t TABLE` - The name of the table.
-/// * `[-d DEFAULT-REGION]` - The region in which the table is created.
+/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
 ///   If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
