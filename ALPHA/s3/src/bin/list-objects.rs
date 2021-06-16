@@ -19,23 +19,28 @@ struct Opt {
     #[structopt(short, long)]
     default_region: Option<String>,
 
+    /// The name of the bucket
+    #[structopt(short, long)]
+    bucket: String,
+
     /// Whether to display additional information
     #[structopt(short, long)]
     verbose: bool,
 }
 
-/// Lists your Amazon S3 buckets
+/// Lists the objects in an Amazon S3 bucket.
 /// # Arguments
 ///
-/// * `[-d DEFAULT-REGION]` - The region containing the buckets.
+/// * `-n NAME` - The name of the bucket.
+/// * `[-d DEFAULT-REGION]` - The region containing the bucket.
 ///   If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
-/// * `[-g]` - Whether to display buckets in all regions.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
 async fn main() {
     let Opt {
         default_region,
+        bucket,
         verbose,
     } = Opt::from_args();
 
@@ -59,30 +64,17 @@ async fn main() {
 
     let client = Client::from_conf(config);
 
-    let mut num_buckets = 0;
-
-    match client.list_buckets().send().await {
+    match client.list_objects().bucket(&bucket).send().await {
         Ok(resp) => {
-            println!("\nBuckets:\n");
-
-            let buckets = resp.buckets.unwrap_or_default();
-
-            for bucket in &buckets {
-                match &bucket.name {
-                    None => {}
-                    Some(b) => {
-                        println!("{}", b);
-                        num_buckets += 1;
-                    }
-                }
+            println!("Objects:");
+            for object in resp.contents.unwrap_or_default() {
+                println!(" {}", object.key.expect("objects have keys"));
             }
-
-            println!("\nFound {} buckets globally", num_buckets);
         }
         Err(e) => {
-            println!("Got an error listing buckets:");
+            println!("Got an error retrieving objects for bucket:");
             println!("{}", e);
             process::exit(1);
         }
-    };
+    }
 }
