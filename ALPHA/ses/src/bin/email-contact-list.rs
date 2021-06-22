@@ -5,7 +5,7 @@
 
 use aws_types::region::ProvideRegion;
 
-use ses::model::Destination;
+use ses::model::{Body, Content, Destination, EmailContent, Message};
 use ses::{Client, Config, Error, Region};
 
 use structopt::StructOpt;
@@ -88,18 +88,37 @@ async fn main() -> Result<(), Error> {
 
     let cs: Option<Vec<String>> = Some(
         contacts
-            .iter()
-            .map(|i| (*i).email_address.unwrap_or_default())
+            .into_iter()
+            .map(|i| i.email_address.unwrap_or_default())
             .collect(),
     );
 
     let mut dest = Destination::builder().build();
     dest.to_addresses = cs;
 
+    let mut subject_content = Content::builder().build();
+    subject_content.data = Some(subject);
+    subject_content.charset = Some(String::from("UTF-8"));
+
+    let mut body_content = Content::builder().build();
+    body_content.data = Some(message);
+    body_content.charset = Some(String::from("UTF-8"));
+
+    let mut body = Body::builder().build();
+    body.text = Some(body_content);
+
+    let mut msg = Message::builder().build();
+    msg.subject = Some(subject_content);
+    msg.body = Some(body);
+
+    let mut email_content = EmailContent::builder().build();
+    email_content.simple = Some(msg);
+
     match client
         .send_email()
         .from_email_address(from_address)
         .destination(dest)
+        .content(email_content)
         .send()
         .await
     {
