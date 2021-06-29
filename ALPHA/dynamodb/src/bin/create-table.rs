@@ -3,34 +3,28 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use std::process;
-
+use aws_types::region::ProvideRegion;
 use dynamodb::model::{
     AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType,
 };
-use dynamodb::{Client, Config, Region};
-
-use aws_types::region::{EnvironmentProvider, ProvideRegion};
-
+use dynamodb::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The region
+    /// The default AWS Region.
     #[structopt(short, long)]
-    region: Option<String>,
+    default_region: Option<String>,
 
-    /// The table name
+    /// The table name.
     #[structopt(short, long)]
     table: String,
 
-    /// The primary key
+    /// The primary key.
     #[structopt(short, long)]
     key: String,
 
-    /// Activate verbose mode
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -40,34 +34,35 @@ struct Opt {
 ///
 /// * `-k KEY` - The primary key for the table.
 /// * `-t TABLE` - The name of the table.
-/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
-///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
+    tracing_subscriber::fmt::init();
+
     let Opt {
         table,
         key,
-        region,
+        default_region,
         verbose,
     } = Opt::from_args();
 
-    let region = EnvironmentProvider::new()
-        .region()
-        .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
+    let region = default_region
+        .as_ref()
+        .map(|region| Region::new(region.clone()))
+        .or_else(|| aws_types::region::default_provider().region())
         .unwrap_or_else(|| Region::new("us-west-2"));
 
-    if verbose {
-        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
-        println!("Region: {:?}", &region);
-        println!("Table:  {}", table);
-        println!("Key:    {}\n", key);
+    println!();
 
-        SubscriberBuilder::default()
-            .with_env_filter("info")
-            .with_span_events(FmtSpan::CLOSE)
-            .init();
+    if verbose {
+        println!("DynamoDB version: {}", PKG_VERSION);
+        println!("Region:           {:?}", &region);
+        println!("Table:            {}", table);
+        println!("Key:              {}", key);
+        println!();
     }
 
     let config = Config::builder().region(region).build();
@@ -88,7 +83,7 @@ async fn main() {
         .write_capacity_units(5)
         .build();
 
-    match client
+    client
         .create_table()
         .table_name(String::from(&table))
         .key_schema(ks)
@@ -96,12 +91,9 @@ async fn main() {
         .provisioned_throughput(pt)
         .send()
         .await
-    {
-        Ok(_) => println!("Added table {} with key {}", table, key),
-        Err(e) => {
-            println!("Got an error creating table:");
-            println!("{}", e);
-            process::exit(1);
-        }
-    };
+        .expect("Could not create table");
+
+    println!("Added table");
+
+    Ok(())
 }

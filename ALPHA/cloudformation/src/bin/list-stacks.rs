@@ -4,27 +4,25 @@
  */
 
 use aws_types::region::ProvideRegion;
-
-use cloudformation::{Client, Config, Region};
-
+use cloudformation::{Client, Config, Region, PKG_VERSION};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The region. Overrides environment variable AWS_DEFAULT_REGION.
+    /// The default AWS Region.
     #[structopt(short, long)]
     default_region: Option<String>,
 
-    /// Whether to display additional runtime information
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
 
-/// Lists the name and status of your CloudFormation stacks in the region.
+/// Lists the name and status of your CloudFormation stacks in the Region.
 /// # Arguments
 ///
-/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
-///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
@@ -42,12 +40,12 @@ async fn main() -> Result<(), cloudformation::Error> {
         .or_else(|| aws_types::region::default_provider().region())
         .unwrap_or_else(|| Region::new("us-west-2"));
 
+    println!();
+
     if verbose {
-        println!(
-            "CloudFormation client version: {}\n",
-            cloudformation::PKG_VERSION
-        );
-        println!("Region:                   {:?}", &region);
+        println!("CloudFormation version: {}", PKG_VERSION);
+        println!("Region:                 {:?}", &region);
+        println!();
     }
 
     let conf = Config::builder().region(region).build();

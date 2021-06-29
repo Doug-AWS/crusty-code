@@ -3,38 +3,32 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use std::process;
-
+use aws_types::region::ProvideRegion;
 use dynamodb::model::AttributeValue;
-use dynamodb::{Client, Config, Region};
-
-use aws_types::region::{EnvironmentProvider, ProvideRegion};
-
+use dynamodb::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The region
+    /// The default AWS Region.
     #[structopt(short, long)]
-    region: Option<String>,
+    default_region: Option<String>,
 
-    /// The table name
+    /// The table name.
     #[structopt(short, long)]
     table: String,
 
-    /// The key for the item in the table
+    /// The key for the item in the table.
     #[structopt(short, long)]
     key: String,
 
-    /// The value of the item to delete from the table
+    /// The value of the item to delete from the table.
     #[structopt(short, long)]
-    value: String,
+    item_value: String,
 
-    /// Whether to display additional information
+    /// Whether to display additional information.
     #[structopt(short, long)]
-    info: bool,
+    verbose: bool,
 }
 
 /// Deletes an item from an Amazon DynamoDB table.
@@ -43,54 +37,50 @@ struct Opt {
 ///
 /// * `-t TABLE` - The name of the table.
 /// * `-k KEY` - The table's primary key.
-/// * `-v VALUE` - The value of the item's primary key.
-/// * `[-r REGION]` - The region in which the table is created.
-///   If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `-i ITEM_VALUE` - The value of the item's primary key.
+/// * `[-d DEFAULT_REGION]` - The Region in which the client is created.
+///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
-/// * `[-i]` - Whether to display additional information.
+/// * `[-v]` - Whether to display additional information.
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
+    tracing_subscriber::fmt::init();
+
     let Opt {
-        info,
+        item_value,
         key,
-        region,
+        default_region,
         table,
-        value,
+        verbose,
     } = Opt::from_args();
 
-    let region = EnvironmentProvider::new()
-        .region()
-        .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
+    let region = default_region
+        .as_ref()
+        .map(|region| Region::new(region.clone()))
+        .or_else(|| aws_types::region::default_provider().region())
         .unwrap_or_else(|| Region::new("us-west-2"));
 
-    if info {
-        println!("DynamoDB client version: {}", dynamodb::PKG_VERSION);
-        println!("Region: {:?}", &region);
-        println!("Table:  {}", table);
-        println!("Key:    {}", key);
+    println!();
 
-        SubscriberBuilder::default()
-            .with_env_filter("info")
-            .with_span_events(FmtSpan::CLOSE)
-            .init();
+    if verbose {
+        println!("DynamoDB version: {}", PKG_VERSION);
+        println!("Region:           {:?}", region);
+        println!("Table:            {}", table);
+        println!("Key:              {}", key);
+        println!("Value:            {}", item_value);
+        println!();
     }
 
     let config = Config::builder().region(region).build();
-
     let client = Client::from_conf(config);
 
-    match client
+    client
         .delete_item()
         .table_name(table)
-        .key(key, AttributeValue::S(value))
+        .key(key, AttributeValue::S(item_value))
         .send()
         .await
-    {
-        Ok(_) => println!("Deleted item from table"),
-        Err(e) => {
-            println!("Got an error deleting item from table:");
-            println!("{}", e);
-            process::exit(1);
-        }
-    };
+        .expect("Could not delete the item from the table");
+
+    Ok(())
 }

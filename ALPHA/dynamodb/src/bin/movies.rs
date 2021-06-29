@@ -5,6 +5,7 @@
 
 use aws_http::AwsErrorRetryPolicy;
 use aws_hyper::{SdkError, SdkSuccess};
+use aws_types::region::ProvideRegion;
 use dynamodb::client::fluent_builders::Query;
 use dynamodb::error::DescribeTableError;
 use dynamodb::input::DescribeTableInput;
@@ -14,13 +15,29 @@ use dynamodb::model::{
 };
 use dynamodb::operation::DescribeTable;
 use dynamodb::output::DescribeTableOutput;
-use dynamodb::{Config, Region};
+use dynamodb::{Client, Config, Error, Region, PKG_VERSION};
 use serde_json::Value;
 use smithy_http::operation::Operation;
 use smithy_http::retry::ClassifyResponse;
 use smithy_types::retry::RetryKind;
 use std::collections::HashMap;
 use std::time::Duration;
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    /// The default AWS Region.
+    #[structopt(short, long)]
+    default_region: Option<String>,
+
+    /// The name of the table.
+    #[structopt(short, long)]
+    table_name: String,
+
+    /// Whether to display additional information.
+    #[structopt(short, long)]
+    verbose: bool,
+}
 
 /// A partial reimplementation of https://docs.amazonaws.cn/en_us/amazondynamodb/latest/developerguide/GettingStarted.Ruby.html
 /// in Rust
@@ -29,13 +46,40 @@ use std::time::Duration;
 /// - Wait for table to be ready
 /// - Add a couple of rows
 /// - Query for those rows
+/// # Arguments
+///
+/// * `-t TABLE-NAME` - The name of the table to create.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
+///    If the environment variable is not set, defaults to **us-west-2**.
+/// * `[-v]` - Whether to display additional information.
 #[tokio::main]
-async fn main() {
-    let table_name = "dynamo-movies-example";
-    let conf = dynamodb::Config::builder()
-        .region(Region::new("us-east-1"))
-        .build();
-    let client = dynamodb::Client::from_conf(conf);
+async fn main() -> Result<(), Error> {
+    tracing_subscriber::fmt::init();
+
+    let Opt {
+        default_region,
+        table_name,
+        verbose,
+    } = Opt::from_args();
+
+    let region = default_region
+        .as_ref()
+        .map(|region| Region::new(region.clone()))
+        .or_else(|| aws_types::region::default_provider().region())
+        .unwrap_or_else(|| Region::new("us-west-2"));
+
+    println!();
+
+    if verbose {
+        println!("DynamoDB version: {}", PKG_VERSION);
+        println!("Region:           {:?}", &region);
+        println!("Table:            {}", &table_name);
+        println!();
+    }
+
+    let conf = Config::builder().region(region).build();
+    let client = Client::from_conf(conf);
     let raw_client = aws_hyper::Client::https();
 
     let table_exists = client
@@ -49,14 +93,14 @@ async fn main() {
         .contains(&table_name.to_string());
 
     if !table_exists {
-        create_table(&client, table_name)
+        create_table(&client, &table_name)
             .send()
             .await
             .expect("failed to create table");
     }
 
     raw_client
-        .call(wait_for_ready_table(table_name, client.conf()))
+        .call(wait_for_ready_table(&table_name, client.conf()))
         .await
         .expect("table should become ready");
 
@@ -69,20 +113,20 @@ async fn main() {
     for value in data {
         client
             .put_item()
-            .table_name(table_name)
+            .table_name(&table_name)
             .set_item(Some(parse_item(value)))
             .send()
             .await
             .expect("failed to insert item");
     }
-    let films_2222 = movies_in_year(&client, table_name, 2222)
+    let films_2222 = movies_in_year(&client, &table_name, 2222)
         .send()
         .await
         .expect("query should succeed");
     // this isn't back to the future, there are no movies from 2022
     assert_eq!(films_2222.count, 0);
 
-    let films_2013 = movies_in_year(&client, table_name, 2013)
+    let films_2013 = movies_in_year(&client, &table_name, 2013)
         .send()
         .await
         .expect("query should succeed");
@@ -100,11 +144,13 @@ async fn main() {
             AttributeValue::S("Turn It Down, Or Else!".to_string())
         ]
     );
+
+    Ok(())
 }
 
 fn create_table(
     client: &dynamodb::Client,
-    table_name: &str,
+    table_name: &String,
 ) -> dynamodb::client::fluent_builders::CreateTable {
     client
         .create_table()
@@ -161,7 +207,7 @@ fn value_to_item(value: Value) -> AttributeValue {
     }
 }
 
-fn movies_in_year(client: &dynamodb::Client, table_name: &str, year: u16) -> Query {
+fn movies_in_year(client: &dynamodb::Client, table_name: &String, year: u16) -> Query {
     client
         .query()
         .table_name(table_name)
@@ -213,7 +259,7 @@ where
 /// Construct a `DescribeTable` request with a policy to retry every second until the table
 /// is ready
 fn wait_for_ready_table(
-    table_name: &str,
+    table_name: &String,
     conf: &Config,
 ) -> Operation<DescribeTable, WaitForReadyTable<AwsErrorRetryPolicy>> {
     let operation = DescribeTableInput::builder()

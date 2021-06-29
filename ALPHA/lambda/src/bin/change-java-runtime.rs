@@ -3,15 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use structopt::StructOpt;
-
 use aws_types::region::ProvideRegion;
 use lambda::model::Runtime;
-use lambda::{Client, Config, Region};
+use lambda::{Client, Config, Error, Region, PKG_VERSION};
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The AWS Region.
+    /// The default AWS Region.
     #[structopt(short, long)]
     default_region: Option<String>,
 
@@ -28,12 +27,12 @@ struct Opt {
 /// # Arguments
 ///
 /// * `-a ARN` - The ARN of the Lambda function.
-/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
-///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt::init();
 
     let Opt {
@@ -48,19 +47,26 @@ async fn main() {
         .or_else(|| aws_types::region::default_provider().region())
         .unwrap_or_else(|| Region::new("us-west-2"));
 
+    println!();
+
     if verbose {
-        println!("Lambda client version: {}", lambda::PKG_VERSION);
-        println!("Region:                {:?}", &region);
-        println!("Lambda function ARN:   {}", &arn);
+        println!("Lambda version:      {}", PKG_VERSION);
+        println!("Region:              {:?}", &region);
+        println!("Lambda function ARN: {}", &arn);
+        println!();
     }
 
     let config = Config::builder().region(region).build();
     let client = Client::from_conf(config);
 
     // Get function's runtime
-    let resp = client.list_functions().send().await;
+    let resp = client
+        .list_functions()
+        .send()
+        .await
+        .expect("Could not get list of functions");
 
-    for function in resp.unwrap().functions.unwrap_or_default() {
+    for function in resp.functions.unwrap_or_default() {
         if arn == function.function_arn.unwrap() {
             let rt = function.runtime.unwrap();
             if rt == Runtime::Java11 || rt == Runtime::Java8 {
@@ -78,4 +84,6 @@ async fn main() {
             }
         }
     }
+
+    Ok(())
 }

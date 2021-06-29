@@ -3,14 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-//use std::process;
-
-use structopt::StructOpt;
-
-//use ec2::{Client, Config, Error, Region};
-//use lambda::{Client, Config, Region};
-
 use aws_types::region::ProvideRegion;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {

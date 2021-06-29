@@ -4,16 +4,13 @@
  */
 
 use aws_types::region::ProvideRegion;
-
-use cloudformation::{Client, Config, Region};
-
+use cloudformation::{Client, Config, Error, Region};
 use std::fs;
-
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The region. Overrides environment variable AWS_DEFAULT_REGION.
+    /// The default AWS Region.
     #[structopt(short, long)]
     default_region: Option<String>,
 
@@ -30,17 +27,17 @@ struct Opt {
     verbose: bool,
 }
 
-/// Creates a CloudFormation stack in the region.
+/// Creates a CloudFormation stack in the Region.
 /// # Arguments
 ///
 /// * `-s STACK-NAME` - The name of the stack.
 /// * `-t TEMPLATE-NAME` - The name of the file containing the stack template.
-/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
-///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
-async fn main() -> Result<(), cloudformation::Error> {
+async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt::init();
 
     let Opt {
@@ -56,6 +53,8 @@ async fn main() -> Result<(), cloudformation::Error> {
         .or_else(|| aws_types::region::default_provider().region())
         .unwrap_or_else(|| Region::new("us-west-2"));
 
+    println!();
+
     if verbose {
         println!(
             "CloudFormation client version: {}",
@@ -67,9 +66,9 @@ async fn main() -> Result<(), cloudformation::Error> {
         println!();
     }
 
-    // Get content of template file as a string.
+    // Get the contents of the template file as a string.
     let contents =
-        fs::read_to_string(template_file).expect("Something went wrong reading the file");
+        fs::read_to_string(template_file).expect("Something went wrong reading the template file");
 
     let conf = Config::builder().region(region).build();
     let client = Client::from_conf(conf);

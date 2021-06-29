@@ -3,16 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use std::process;
-
-use dynamodb::model::AttributeValue;
-use dynamodb::{Client, Config, Region};
-
 use aws_types::region::{EnvironmentProvider, ProvideRegion};
-
+use dynamodb::model::AttributeValue;
+use dynamodb::{Client, Config, Error, Region, PKG_VERSION};
+use std::process;
 use structopt::StructOpt;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -40,11 +35,11 @@ struct Opt {
     #[structopt(short, long)]
     table: String,
 
-    /// The region
+    /// The default AWS Region
     #[structopt(short, long)]
     region: Option<String>,
 
-    /// Activate verbose mode
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -59,12 +54,14 @@ struct Opt {
 /// * `-a AGE` - The age of the user.
 /// * `-f FIRST` - The first name of the user.
 /// * `-l LAST` - The last name of the user.
-/// * `[-r REGION]` - The region in which the table is created.
-///   If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-r REGION]` - The Region in which the table is created.
+///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
+    tracing_subscriber::fmt::init();
+
     let Opt {
         table,
         username,
@@ -88,52 +85,43 @@ async fn main() {
         .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
         .unwrap_or_else(|| Region::new("us-west-2"));
 
-    if verbose {
-        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
-        println!("Region: {:?}", &region);
-        println!("Table:  {}", table);
-        println!("User:   {}", username);
-        println!("Type:   {}", p_type);
-        println!("Age:    {}", age);
-        println!("First:  {}", first);
-        println!("Last:   {}\n", last);
+    println!();
 
-        SubscriberBuilder::default()
-            .with_env_filter("info")
-            .with_span_events(FmtSpan::CLOSE)
-            .init();
+    if verbose {
+        println!("DynamoDB version: {}", PKG_VERSION);
+        println!("Region:           {:?}", region);
+        println!("Table:            {}", table);
+        println!("User:             {}", username);
+        println!("Type:             {}", p_type);
+        println!("Age:              {}", age);
+        println!("First:            {}", first);
+        println!("Last:             {}", last);
+        println!();
     }
 
     let config = Config::builder().region(region).build();
 
     let client = Client::from_conf(config);
 
-    let user_av = AttributeValue::S(String::from(&username));
-    let type_av = AttributeValue::S(String::from(&p_type));
-    let age_av = AttributeValue::S(String::from(&age));
-    let first_av = AttributeValue::S(String::from(&first));
-    let last_av = AttributeValue::S(String::from(&last));
+    let user_av = AttributeValue::S(username);
+    let type_av = AttributeValue::S(p_type);
+    let age_av = AttributeValue::S(age);
+    let first_av = AttributeValue::S(first);
+    let last_av = AttributeValue::S(last);
 
-    let request = client
+    client
         .put_item()
         .table_name(table)
         .item("username", user_av)
         .item("account_type", type_av)
         .item("age", age_av)
         .item("first_name", first_av)
-        .item("last_name", last_av);
+        .item("last_name", last_av)
+        .send()
+        .await
+        .expect("Got an error adding item to table");
 
-    println!("Executing request [{:?}] to add item...", request);
+    println!("Added user.");
 
-    match request.send().await {
-        Ok(_) => println!(
-            "Added user {}, {} {}, age {} as {} user",
-            username, first, last, age, p_type
-        ),
-        Err(e) => {
-            println!("Got an error adding item:");
-            println!("{}", e);
-            process::exit(1);
-        }
-    };
+    Ok(())
 }

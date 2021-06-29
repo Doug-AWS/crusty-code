@@ -3,38 +3,27 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use std::io::{stdin, Read};
-use std::time::Duration;
-use std::{iter, process};
-
 use aws_http::AwsErrorRetryPolicy;
 use aws_hyper::{SdkError, SdkSuccess};
-
+use aws_types::region::ProvideRegion;
 use dynamodb::error::DescribeTableError;
-
 use dynamodb::input::DescribeTableInput;
-
 use dynamodb::model::{
     AttributeDefinition, AttributeValue, KeySchemaElement, KeyType, ProvisionedThroughput,
     ScalarAttributeType, Select, TableStatus,
 };
-
 use dynamodb::operation::DescribeTable;
 use dynamodb::output::DescribeTableOutput;
-
-use dynamodb::{Client, Config, Region};
-
-use aws_types::region::{EnvironmentProvider, ProvideRegion};
-
+use dynamodb::{Client, Config, Error, Region, PKG_VERSION};
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use smithy_http::operation::Operation;
 use smithy_http::retry::ClassifyResponse;
 use smithy_types::retry::RetryKind;
-
+use std::io::{stdin, Read};
+use std::iter;
+use std::time::Duration;
 use structopt::StructOpt;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -42,11 +31,11 @@ struct Opt {
     #[structopt(short, long)]
     interactive: bool,
 
-    /// The AWS Region
+    /// The default AWS Region.
     #[structopt(short, long)]
-    region: Option<String>,
+    default_region: Option<String>,
 
-    /// Activate verbose mode    
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -78,7 +67,7 @@ async fn create_table(client: &dynamodb::Client, table: &str, key: &str) {
         .write_capacity_units(5)
         .build();
 
-    match client
+    client
         .create_table()
         .table_name(table)
         .key_schema(ks)
@@ -86,14 +75,7 @@ async fn create_table(client: &dynamodb::Client, table: &str, key: &str) {
         .provisioned_throughput(pt)
         .send()
         .await
-    {
-        Ok(_) => println!(),
-        Err(e) => {
-            println!("Got an error creating the table:");
-            println!("{}", e);
-            process::exit(1);
-        }
-    }
+        .expect("Could not create table");
 }
 
 /// For add_item and scan_item
@@ -116,7 +98,7 @@ async fn add_item(client: &dynamodb::Client, item: Item) {
     let first_av = AttributeValue::S(item.first_name);
     let last_av = AttributeValue::S(item.last_name);
 
-    match client
+    client
         .put_item()
         .table_name(item.table)
         .item(item.key, user_av)
@@ -126,14 +108,7 @@ async fn add_item(client: &dynamodb::Client, item: Item) {
         .item("last_name", last_av)
         .send()
         .await
-    {
-        Ok(_) => println!(),
-        Err(e) => {
-            println!("Got an error adding item to table:");
-            println!("{}", e);
-            process::exit(1);
-        }
-    }
+        .expect("Could not add item to table");
 }
 
 /// Query the table for an item matching the input values.
@@ -162,32 +137,23 @@ async fn query(client: &dynamodb::Client, item: Item) {
 /// Delete an item from the table.
 async fn delete_item(client: &dynamodb::Client, table: &str, key: &str, value: &str) {
     let user_av = AttributeValue::S(String::from(value));
-    match client
+    client
         .delete_item()
         .table_name(table)
         .key(key, user_av)
         .send()
         .await
-    {
-        Ok(_) => println!(),
-        Err(e) => {
-            println!("Got an error trying to delete item:");
-            println!("{}", e);
-            process::exit(1);
-        }
-    }
+        .expect("Got an error trying to delete the item");
 }
 
 /// Delete the table.
 async fn delete_table(client: &dynamodb::Client, table: &str) {
-    match client.delete_table().table_name(table).send().await {
-        Ok(_) => println!(),
-        Err(e) => {
-            println!("Got an error deleting table:");
-            println!("{}", e);
-            process::exit(1);
-        }
-    }
+    client
+        .delete_table()
+        .table_name(table)
+        .send()
+        .await
+        .expect("Could not delete the table");
 }
 
 /// Hand-written waiter to retry every second until the table is out of `Creating` state
@@ -245,21 +211,24 @@ fn pause() {
 /// # Arguments
 ///
 /// * `[-i]` - Whether to pause between operations.
-/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
-///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
+    tracing_subscriber::fmt::init();
+
     let Opt {
         interactive,
-        region,
+        default_region,
         verbose,
     } = Opt::from_args();
 
-    let region = EnvironmentProvider::new()
-        .region()
-        .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
+    let region = default_region
+        .as_ref()
+        .map(|region| Region::new(region.clone()))
+        .or_else(|| aws_types::region::default_provider().region())
         .unwrap_or_else(|| Region::new("us-west-2"));
 
     // Create 10-character random table name
@@ -277,16 +246,14 @@ async fn main() {
     let age = "33";
     let utype = "standard_user";
 
-    if verbose {
-        println!("DynamoDB client version: {}\n", dynamodb::PKG_VERSION);
-        println!("Table:  {}", table);
-        println!("Key:    {}", key);
-        println!("Value:  {}", value);
+    println!();
 
-        SubscriberBuilder::default()
-            .with_env_filter("info")
-            .with_span_events(FmtSpan::CLOSE)
-            .init();
+    if verbose {
+        println!("DynamoDB version: {}", PKG_VERSION);
+        println!("Table:            {}", table);
+        println!("Key:              {}", key);
+        println!("Value:            {}", value);
+        println!();
     }
 
     let r = region.clone();
@@ -294,7 +261,7 @@ async fn main() {
     let conf = Config::builder().region(&r).build();
     let client = Client::from_conf(conf);
 
-    /* Create table */
+    // Create table
     println!();
     println!("Creating table {} in {:?}", table, r);
     create_table(&client, &table, &key).await;
@@ -365,6 +332,8 @@ async fn main() {
     /* Delete table */
     println!("Deleting table");
     delete_table(&client, &table).await;
+
+    Ok(())
 }
 
 /// Construct a `DescribeTable` request with a policy to retry every second until the table
