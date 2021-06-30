@@ -8,8 +8,7 @@ edition = "2018"
 
 [dependencies]
 ssm = { package = "aws-sdk-ssm", path = "../../build/aws-sdk/ssm" }
-tokio = { version = "1", features = ["full"] }
 aws-types = { path = "../../build/aws-sdk/aws-types" }
-
+tokio = { version = "1", features = ["full"] }
 structopt = { version = "0.3", default-features = false }
 tracing-subscriber = { version = "0.2.16", features = ["fmt"] }
