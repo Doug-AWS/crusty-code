@@ -4,9 +4,7 @@
  */
 
 use aws_types::region::ProvideRegion;
-
-use ses::{Client, Config, Error, Region};
-
+use ses::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -15,7 +13,7 @@ struct Opt {
     #[structopt(short, long)]
     contact_list: String,
 
-    /// The AWS Region.
+    /// The default AWS Region.
     #[structopt(short, long)]
     default_region: Option<String>,
 
@@ -23,7 +21,7 @@ struct Opt {
     #[structopt(short, long)]
     email_address: String,
 
-    /// Whether to display additional runtime information
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -33,8 +31,8 @@ struct Opt {
 ///
 /// * `-c CONTACT-LIST` - The name of the contact list.
 /// * `-e EMAIL-ADDRESS` - The email address of the contact to add to the contact list.
-/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
-///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
@@ -53,26 +51,24 @@ async fn main() -> Result<(), Error> {
         .unwrap_or_else(|| Region::new("us-west-2"));
 
     if verbose {
-        println!("SES client version: {}", ses::PKG_VERSION);
-        println!("Region:             {:?}", &region);
-        println!("Contact list:       {}", &contact_list);
-        println!("Email address:      {}", &email_address);
+        println!("SES version:   {}", PKG_VERSION);
+        println!("Region:        {:?}", &region);
+        println!("Contact list:  {}", &contact_list);
+        println!("Email address: {}", &email_address);
         println!();
     }
 
     let conf = Config::builder().region(region).build();
     let client = Client::from_conf(conf);
 
-    let new_contact = client
+    client
         .create_contact()
         .contact_list_name(contact_list)
         .email_address(email_address)
         .send()
-        .await;
-    match new_contact {
-        Ok(_) => println!("Created contact"),
-        Err(e) => eprintln!("Got error attempting to create contact: {}", e),
-    };
+        .await?;
+
+    println!("Created contact");
 
     Ok(())
 }

@@ -4,9 +4,7 @@
  */
 
 use aws_types::region::ProvideRegion;
-
-use ses::{Client, Config, Error, Region};
-
+use ses::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -15,11 +13,11 @@ struct Opt {
     #[structopt(short, long)]
     contact_list: String,
 
-    /// The AWS Region.
+    /// The default AWS Region.
     #[structopt(short, long)]
     default_region: Option<String>,
 
-    /// Whether to display additional runtime information
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -28,8 +26,8 @@ struct Opt {
 /// # Arguments
 ///
 /// * `-c CONTACT-LIST` - The name of the contact list.
-/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
-///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
@@ -46,10 +44,12 @@ async fn main() -> Result<(), Error> {
         .or_else(|| aws_types::region::default_provider().region())
         .unwrap_or_else(|| Region::new("us-west-2"));
 
+    println!();
+
     if verbose {
-        println!("SES client version: {}", ses::PKG_VERSION);
-        println!("Region:             {:?}", &region);
-        println!("Contact list:       {}", &contact_list);
+        println!("SES version:  {}", PKG_VERSION);
+        println!("Region:       {:?}", &region);
+        println!("Contact list: {}", &contact_list);
         println!();
     }
 
@@ -60,9 +60,9 @@ async fn main() -> Result<(), Error> {
         .list_contacts()
         .contact_list_name(contact_list)
         .send()
-        .await;
+        .await?;
 
-    for contact in resp.unwrap().contacts.unwrap_or_default() {
+    for contact in resp.contacts.unwrap_or_default() {
         println!("{}", contact.email_address.as_deref().unwrap_or_default());
     }
 

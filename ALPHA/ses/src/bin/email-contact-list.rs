@@ -4,10 +4,8 @@
  */
 
 use aws_types::region::ProvideRegion;
-
 use ses::model::{Body, Content, Destination, EmailContent, Message};
-use ses::{Client, Config, Error, Region};
-
+use ses::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -16,7 +14,7 @@ struct Opt {
     #[structopt(short, long)]
     contact_list: String,
 
-    /// The AWS Region.
+    /// The default AWS Region.
     #[structopt(short, long)]
     default_region: Option<String>,
 
@@ -31,7 +29,8 @@ struct Opt {
     /// The subject of the email.
     #[structopt(short, long)]
     subject: String,
-    /// Whether to display additional runtime information
+
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -43,8 +42,8 @@ struct Opt {
 /// * `-m MESSAGE` - The email message that is sent.
 /// * `-s SUBJECT` - The subject of the email message.
 /// * `-c CONTACT-LIST` - The contact list with the email addresses of the recepients.
-/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
-///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
@@ -64,13 +63,15 @@ async fn main() -> Result<(), Error> {
         .or_else(|| aws_types::region::default_provider().region())
         .unwrap_or_else(|| Region::new("us-west-2"));
 
+    println!();
+
     if verbose {
-        println!("SES client version: {}", ses::PKG_VERSION);
-        println!("Region:             {:?}", &region);
-        println!("From address:       {}", &from_address);
-        println!("Contact list:       {}", &contact_list);
-        println!("Subject:            {}", &subject);
-        println!("Message:            {}", &message);
+        println!("SES version:  {}", PKG_VERSION);
+        println!("Region:       {:?}", &region);
+        println!("From address: {}", &from_address);
+        println!("Contact list: {}", &contact_list);
+        println!("Subject:      {}", &subject);
+        println!("Message:      {}", &message);
         println!();
     }
 
@@ -82,9 +83,9 @@ async fn main() -> Result<(), Error> {
         .list_contacts()
         .contact_list_name(contact_list)
         .send()
-        .await;
+        .await?;
 
-    let contacts = resp.unwrap().contacts.unwrap_or_default();
+    let contacts = resp.contacts.unwrap_or_default();
 
     let cs: String = contacts
         .into_iter()
@@ -103,19 +104,15 @@ async fn main() -> Result<(), Error> {
 
     let email_content = EmailContent::builder().simple(msg).build();
 
-    match client
+    client
         .send_email()
         .from_email_address(from_address)
         .destination(dest)
         .content(email_content)
         .send()
-        .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            println!("Got an error sending email: {}", e);
-        }
-    }
+        .await?;
+
+    println!("Email sent to list");
 
     Ok(())
 }
