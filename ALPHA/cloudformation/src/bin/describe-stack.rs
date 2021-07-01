@@ -58,21 +58,19 @@ async fn main() -> Result<(), Error> {
     let conf = Config::builder().region(region).build();
     let client = Client::from_conf(conf);
 
-    // Panic if stack_name does not exist
-    let status = client
+    // Return an error if stack_name does not exist
+    let resp = client
         .describe_stacks()
         .stack_name(stack_name)
         .send()
-        .await
-        .expect("Could not find your stack")
-        .stacks
-        .unwrap()
-        .pop()
-        .unwrap()
-        .stack_status
-        .unwrap();
+        .await?;
+
+    // Otherwise we get a list of stacks that match the stack_name.
+    // The list should only have one item, so just access is via pop().
+    let status = resp.stacks.unwrap_or_default().pop().unwrap().stack_status;
 
     println!("Stack status: {:?}", status);
+
     println!();
 
     Ok(())
