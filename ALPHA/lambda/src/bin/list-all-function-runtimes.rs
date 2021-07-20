@@ -28,14 +28,14 @@ async fn show_lambdas(verbose: bool, reg: String) {
     let functions = resp.unwrap().functions.unwrap_or_default();
     let num_functions = functions.len();
 
-    if num_functions > 0 || verbose {
-        println!("Found {} functions in {}:", num_functions, r);
-        println!();
-    }
-
     for function in functions {
         println!("  ARN:     {}", function.function_arn.unwrap());
         println!("  Runtime: {:?}", function.runtime.unwrap());
+        println!();
+    }
+
+    if num_functions > 0 || verbose {
+        println!("Found {} functions in {}.", num_functions, r);
         println!();
     }
 }

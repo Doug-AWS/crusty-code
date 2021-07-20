@@ -1,0 +1,59 @@
+Resources in us-west-2
+----------------------
+IAM role ARN:   arn:aws:iam::188580781645:role/ConfigToDynamo
+S3 bucket name: dougs-groovy-config-bucket
+SNS topic ARN:  arn:aws:sns:us-west-2:188580781645:dougs-groovy-topic
+
+
+Resources in us-west-1
+----------------------
+IAM role ARN:   
+S3 bucket name: dougs-groovy-us-west-1-config-bucket
+SNS topic ARN:  arn:aws:sns:us-west-1:188580781645:dougs-groovy-us-west-1-config-topic
+
+Config bucket:  config-bucket-188580781645
+Config topic :  config-topic-188580781645
+          ARN:  arn:aws:sns:us-west-1:188580781645:config-topic-188580781645
+
+
+
+
+Bucket policy:
+
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AWSConfigBucketPermissionsCheck",
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "config.amazonaws.com"
+            },
+            "Action": "s3:GetBucketAcl",
+            "Resource": "arn:aws:s3:::config-bucket-188580781645"
+        },
+        {
+            "Sid": "AWSConfigBucketExistenceCheck",
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "config.amazonaws.com"
+            },
+            "Action": "s3:ListBucket",
+            "Resource": "arn:aws:s3:::config-bucket-188580781645"
+        },
+        {
+            "Sid": "AWSConfigBucketDelivery",
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "config.amazonaws.com"
+            },
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::config-bucket-188580781645/AWSLogs/188580781645/Config/*",
+            "Condition": {
+                "StringEquals": {
+                    "s3:x-amz-acl": "bucket-owner-full-control"
+                }
+            }
+        }
+    ]
+}
