@@ -1,6 +1,5 @@
 use aws_types::region;
 use aws_types::region::ProvideRegion;
-use config::model::ResourceType;
 use config::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
 
@@ -10,16 +9,20 @@ struct Opt {
     #[structopt(short, long)]
     region: Option<String>,
 
+    /// The channel to delete.
+    #[structopt(short, long)]
+    channel: String,
+
     /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
 
-/// Lists the AWS Config resources for a resource type, in the Region.
+/// Deletes the specified delivery channel.
 ///
 /// # Arguments
 ///
-/// * `-t TYPE` - The type of resource to list.
+/// * `-c CHANNEL` - The name of the channel to delete.
 /// * `[-r REGION]` - The Region in which the client is created.
 ///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
@@ -27,7 +30,11 @@ struct Opt {
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt::init();
-    let Opt { region, verbose } = Opt::from_args();
+    let Opt {
+        channel,
+        region,
+        verbose,
+    } = Opt::from_args();
 
     let region = region::ChainProvider::first_try(region.map(Region::new))
         .or_default_provider()
@@ -41,6 +48,7 @@ async fn main() -> Result<(), Error> {
             "Region:                {}",
             region.region().unwrap().as_ref()
         );
+        println!("Delivery channel:      {}", channel);
 
         println!();
     }
@@ -48,36 +56,13 @@ async fn main() -> Result<(), Error> {
     let conf = Config::builder().region(region).build();
     let client = Client::from_conf(conf);
 
-    if !verbose {
-        println!("You won't see any output if you don't have any resources defined in the region.");
-    }
+    client
+        .delete_delivery_channel()
+        .delivery_channel_name(channel)
+        .send()
+        .await?;
 
-    for value in ResourceType::values() {
-        let parsed = ResourceType::from(*value);
-
-        let resp = client
-            .list_discovered_resources()
-            .resource_type(parsed)
-            .send()
-            .await?;
-
-        let resources = resp.resource_identifiers.unwrap_or_default();
-        let length = resources.len();
-
-        if length > 0 || verbose {
-            println!();
-            println!("Resources of type {}:", value);
-        }
-
-        for resource in resources {
-            println!(
-                "  Resource ID: {}",
-                resource.resource_id.as_deref().unwrap_or_default()
-            );
-        }
-    }
-
-    println!();
+    println!("Done");
 
     Ok(())
 }

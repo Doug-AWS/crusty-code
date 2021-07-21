@@ -55,7 +55,20 @@ async fn main() -> Result<(), Error> {
 
   println!();
 
-  let doc = String::from("{\"Version\": \"2012-10-17\",\"Statement\": [{\"Sid\": \"AWSConfigBucketPermissionsCheck\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:GetBucketAcl\",\"Resource\": \"arn:aws:s3:::") + &bucket + "\"},{\"Sid\": \"AWSConfigBucketExistenceCheck\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:ListBucket\",\"Resource\": \"arn:aws:s3:::" + &bucket + "\"},{\"Sid\": \"AWSConfigBucketDelivery\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:PutObject\",\"Resource\": \"arn:aws:s3:::" + &bucket + "/AWSLogs/" + &account + "/Config/*\",\"Condition\": {\"StringEquals\": {\"s3:x-amz-acl\": \"bucket-owner-full-control\"}}}]}";
+  // let doc = String::from("{\"Version\": \"2012-10-17\",\"Statement\": [{\"Sid\": \"AWSConfigBucketPermissionsCheck\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:GetBucketAcl\",\"Resource\": \"arn:aws:s3:::") + &bucket + "\"},{\"Sid\": \"AWSConfigBucketExistenceCheck\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:ListBucket\",\"Resource\": \"arn:aws:s3:::" + &bucket + "\"},{\"Sid\": \"AWSConfigBucketDelivery\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:PutObject\",\"Resource\": \"arn:aws:s3:::" + &bucket + "/AWSLogs/" + &account + "/Config/*\",\"Condition\": {\"StringEquals\": {\"s3:x-amz-acl\": \"bucket-owner-full-control\"}}}]}";
+
+  let doc = "{
+      \"Version\":\"2012-10-17\",
+      \"Statement\":[
+        {
+          \"Effect\":\"Allow\",
+          \"Principal\":{
+            \"Service\":[\"config.amazonaws.com\"]
+          },
+          \"Action\":[\"sts:AssumeRole\"]
+        }
+        ]
+      }";
 
   if verbose {
     println!("IAM client version: {}", PKG_VERSION);

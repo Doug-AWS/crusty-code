@@ -3,22 +3,30 @@ Resources in us-west-2
 IAM role ARN:   arn:aws:iam::188580781645:role/ConfigToDynamo
 S3 bucket name: dougs-groovy-config-bucket
 SNS topic ARN:  arn:aws:sns:us-west-2:188580781645:dougs-groovy-topic
+KMS key ARN:    arn:aws:kms:us-west-2:188580781645:key/92db6987-d553-4b9e-96bf-764cd9be456b
 
+//s3 key prefix
 
 Resources in us-west-1
 ----------------------
-IAM role ARN:   
+IAM role ARN:   arn:aws:iam::188580781645:role/ConfigRole666
 S3 bucket name: dougs-groovy-us-west-1-config-bucket
 SNS topic ARN:  arn:aws:sns:us-west-1:188580781645:dougs-groovy-us-west-1-config-topic
+KMS key ARN:    arn:aws:kms:us-west-1:188580781645:key/91f05d68-fa11-49ce-9fc1-8a8947e6f854
 
 Config bucket:  config-bucket-188580781645
 Config topic :  config-topic-188580781645
           ARN:  arn:aws:sns:us-west-1:188580781645:config-topic-188580781645
 
+Config args
+-----------
+-b BUCKET
+-i IAM-ARN
+-k KSM-ARN
+-s SNS-ARN
 
-
-
-Bucket policy:
+Bucket policy
+-------------
 
 {
     "Version": "2012-10-17",
@@ -57,3 +65,43 @@ Bucket policy:
         }
     ]
 }
+
+/*
+  let doc = "{
+    \"Version\": \"2012-10-17\",
+    \"Statement\": [
+      {
+        \"Sid\": \"AWSConfigBucketPermissionsCheck\",
+        \"Effect\": \"Allow\",
+        \"Principal\": {
+          \"Service\": \"config.amazonaws.com\"
+        },
+        \"Action\": \"s3:GetBucketAcl\",
+        \"Resource\": \"arn:aws:s3:::config-bucket-188580781645\"
+      },
+      {
+        \"Sid\": \"AWSConfigBucketExistenceCheck\",
+        \"Effect\": \"Allow\",
+        \"Principal\": {
+          \"Service\": \"config.amazonaws.com\"
+        },
+        \"Action\": \"s3:ListBucket\",
+        \"Resource\": \"arn:aws:s3:::config-bucket-188580781645\"
+      },
+      {
+        \"Sid\": \"AWSConfigBucketDelivery\",
+        \"Effect\": \"Allow\",
+        \"Principal\": {
+          \"Service\": \"config.amazonaws.com\"
+        },
+        \"Action\": \"s3:PutObject\",
+        \"Resource\": \"arn:aws:s3:::config-bucket-188580781645/AWSLogs/188580781645/Config/*\",
+        \"Condition\": {
+          \"StringEquals\": {
+            \"s3:x-amz-acl\": \"bucket-owner-full-control\"
+          }
+        }
+      }
+      ]
+    }";
+    */

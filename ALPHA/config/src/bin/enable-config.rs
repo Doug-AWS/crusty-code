@@ -5,6 +5,7 @@ use config::model::{
     MaximumExecutionFrequency, RecordingGroup, ResourceType,
 };
 use config::{Client, Config, Error, Region, PKG_VERSION};
+use std::process;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -12,10 +13,6 @@ struct Opt {
     /// The AWS Region.
     #[structopt(short, long)]
     region: Option<String>,
-
-    /// The ARN of the Amazon SNS topic.
-    #[structopt(short, long)]
-    sns_arn: String,
 
     /// The name of the Amazon bucket.
     #[structopt(short, long)]
@@ -25,9 +22,21 @@ struct Opt {
     #[structopt(short, long)]
     iam_arn: String,
 
+    /// The ARN of the KMS key used to encrypt the data placed in the bucket.
+    #[structopt(short, long)]
+    kms_arn: String,
+
     /// The name of the configuration.
     #[structopt(default_value = "default", short, long)]
     name: String,
+
+    /// The prefix for the bucket.
+    #[structopt(short, long)]
+    prefix: String,
+
+    /// The ARN of the Amazon SNS topic.
+    #[structopt(short, long)]
+    sns_arn: String,
 
     /// The type of resource to record info about.
     #[structopt(default_value = "AWS::DynamoDB::Table", short, long)]
@@ -44,6 +53,8 @@ struct Opt {
 ///
 /// * `-b BUCKET` - The name of the Amazon bucket to which AWS Config delivers configuration snapshots and configuration history files.
 /// * `-i IAM-ARN` - The ARN of the IAM role that used to describe the AWS resources associated with the account.
+/// * `-k KMS-ARN` - The ARN of the KMS key that used to encrypt the data in the bucket.
+/// * `-p PREFIX` - The prefix for the bucket.
 /// * `-s SNS-ARN` - The ARN of the Amazon SNS topic to which AWS Config sends notifications about configuration changes.
 /// * `[-t TYPE]` - The type of resource for AWS Config to support.
 ///   If not supplied, defaults to `AWS::DynamoDB::Table` (DynamoDB tables).
@@ -53,6 +64,7 @@ struct Opt {
 ///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display information.
+/// Need: s3 key prefix AND kms key
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt::init();
@@ -60,7 +72,9 @@ async fn main() -> Result<(), Error> {
         region,
         bucket,
         iam_arn,
+        kms_arn,
         name,
+        prefix,
         sns_arn,
         type_,
         verbose,
@@ -81,20 +95,53 @@ async fn main() -> Result<(), Error> {
         println!("Resource type:                  {}", type_);
         println!("Config (delivery channel) name: {}", name);
         println!("Bucket:                         {}", bucket);
+        println!("Prefix:                         {}", prefix);
         println!("SNS ARN:                        {}", sns_arn);
         println!("IAM ARN:                        {}", iam_arn);
+        println!("KMS ARN:                        {}", kms_arn);
         println!();
     }
 
     let conf = Config::builder().region(region).build();
     let client = Client::from_conf(conf);
 
-    if !verbose {
-        println!("You won't see any output if you don't have any resources defined in the region.");
+    // If we already have a configuration recorder in the Region, we cannot create another.
+    let resp = client.describe_configuration_recorders().send().await?;
+
+    let recorders = resp.configuration_recorders.unwrap_or_default();
+
+    let num_recorders = recorders.len();
+
+    if num_recorders != 0 {
+        println!("You already have a configuration recorder in this region");
+        println!("Use delete-configuration-recorder to delete it before you call this again.");
+
+        for recorder in recorders {
+            println!("Recorder: {}", recorder.name.as_deref().unwrap_or_default());
+        }
+
+        process::exit(1);
     }
 
-    let mut resource_types: Vec<ResourceType> = Vec::new();
-    resource_types.push(ResourceType::Topic);
+    // If we already have a delivery channel in the Region, we cannot create another.println!
+    let resp = client.describe_delivery_channels().send().await?;
+
+    let channels = resp.delivery_channels.unwrap_or_default();
+
+    let num_channels = channels.len();
+
+    if num_channels != 0 {
+        println!("You already have a delivery channel in this region");
+        println!("Use delete-delivery-channel to delete it before you call this again.");
+
+        for channel in channels {
+            println!("  Channel: {}", channel.name.as_deref().unwrap_or_default());
+        }
+
+        process::exit(1);
+    }
+
+    let resource_types: Vec<ResourceType> = vec![ResourceType::Topic];
 
     let rec_group = RecordingGroup::builder()
         .set_resource_types(Some(resource_types))
@@ -114,7 +161,6 @@ async fn main() -> Result<(), Error> {
 
     println!("Configured recorder.");
 
-    // put-delivery-channel --delivery-channel file://deliveryChannel.json
     // Create delivery channel
     let snapshot_props = ConfigSnapshotDeliveryProperties::builder()
         .delivery_frequency(MaximumExecutionFrequency::TwelveHours)
@@ -123,6 +169,8 @@ async fn main() -> Result<(), Error> {
     let delivery_channel = DeliveryChannel::builder()
         .name(name)
         .s3_bucket_name(bucket)
+        .s3_key_prefix(prefix)
+        .s3_kms_key_arn(kms_arn)
         .sns_topic_arn(sns_arn)
         .config_snapshot_delivery_properties(snapshot_props)
         .build();
