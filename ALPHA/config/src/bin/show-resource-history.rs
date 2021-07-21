@@ -23,7 +23,7 @@ struct Opt {
     verbose: bool,
 }
 
-/// Lists the configuration history for a resource.
+/// Displays the configuration history for a resource.
 ///
 /// NOTE: AWS Config must be enabled to discover resources.
 /// # Arguments

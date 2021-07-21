@@ -18,7 +18,7 @@ struct Opt {
     verbose: bool,
 }
 
-/// Deletes the specified delivery channel.
+/// Deletes an AWS Config delivery channel.
 ///
 /// # Arguments
 ///

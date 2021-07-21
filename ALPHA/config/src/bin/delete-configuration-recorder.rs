@@ -18,7 +18,7 @@ struct Opt {
     verbose: bool,
 }
 
-/// Deletes the specified AWS Config configuration recorder.
+/// Deletes an AWS Config configuration recorder.
 ///
 /// # Arguments
 ///

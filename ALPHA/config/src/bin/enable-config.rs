@@ -123,7 +123,7 @@ async fn main() -> Result<(), Error> {
         process::exit(1);
     }
 
-    // If we already have a delivery channel in the Region, we cannot create another.println!
+    // If we already have a delivery channel in the Region, we cannot create another.
     let resp = client.describe_delivery_channels().send().await?;
 
     let channels = resp.delivery_channels.unwrap_or_default();
