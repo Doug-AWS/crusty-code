@@ -31,22 +31,22 @@ async fn main() -> Result<(), Error> {
 
     let Opt { region, verbose } = Opt::from_args();
 
-    let region_provider = region::ChainProvider::first_try(region.map(Region::new))
+    let region = region::ChainProvider::first_try(region.map(Region::new))
         .or_default_provider()
         .or_else(Region::new("us-west-2"));
 
     println!();
 
     if verbose {
-        println!("Snowball version: {}", PKG_VERSION);
+        println!("Snowball client version: {}", PKG_VERSION);
         println!(
-            "Region:           {}",
-            region_provider.region().unwrap().as_ref()
+            "Region:                  {}",
+            region.region().unwrap().as_ref()
         );
         println!();
     }
 
-    let conf = Config::builder().region(region_provider).build();
+    let conf = Config::builder().region(region).build();
     let client = Client::from_conf(conf);
 
     println!("Jobs:");

@@ -35,10 +35,7 @@ async fn main() -> Result<(), Error> {
 
     if verbose {
         println!("Config client version: {}", PKG_VERSION);
-        println!(
-            "Region:                {}",
-            region.region().unwrap().as_ref()
-        );
+        println!("Region: {}", region.region().unwrap().as_ref());
 
         println!();
     }
