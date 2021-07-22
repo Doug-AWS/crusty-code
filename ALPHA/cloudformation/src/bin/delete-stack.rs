@@ -3,35 +3,31 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
+use aws_sdk_cloudformation::{Client, Config, Error, Region, PKG_VERSION};
+use aws_types::region;
 use aws_types::region::ProvideRegion;
-use cloudformation::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The default AWS Region.
+    /// The AWS Region.
     #[structopt(short, long)]
-    default_region: Option<String>,
+    region: Option<String>,
 
-    /// The name of the stack.
+    /// The name of the AWS CloudFormation stack.
     #[structopt(short, long)]
     stack_name: String,
 
-    /// Whether to display additional information.
+    /// Whether to display additional runtime information.
     #[structopt(short, long)]
     verbose: bool,
 }
 
-/// Deletes a CloudFormation stack in the Region.
+/// Deletes a CloudFormation stack.
 /// # Arguments
 ///
 /// * `-s STACK-NAME` - The name of the stack.
-///   Note that the operation does not fail if the stack does not exist.
-///   Use the describe-stack example to see the stack's status
-///   (it will be DELETE_COMPLETE when the stack is deleted).
-/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+/// * `[-r REGION]` - The Region in which the client is created.
 ///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
@@ -40,29 +36,23 @@ async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt::init();
 
     let Opt {
-        default_region,
+        region,
         stack_name,
         verbose,
     } = Opt::from_args();
 
-    let region = default_region
-        .as_ref()
-        .map(|region| Region::new(region.clone()))
-        .or_else(|| aws_types::region::default_provider().region())
-        .unwrap_or_else(|| Region::new("us-west-2"));
-
-    println!();
+    let region = region::ChainProvider::first_try(region.map(Region::new))
+        .or_default_provider()
+        .or_else(Region::new("us-west-2"));
 
     if verbose {
-        println!("CloudFormation version: {}", PKG_VERSION);
-        println!("Region:                 {:?}", &region);
-        println!("Stack:                  {}", &stack_name);
+        println!("CloudFormation client version: {}", PKG_VERSION);
+        println!(
+            "Region:                        {}",
+            region.region().unwrap().as_ref()
+        );
+        println!("Stack:                         {}", &stack_name);
         println!();
-
-        SubscriberBuilder::default()
-            .with_env_filter("info")
-            .with_span_events(FmtSpan::CLOSE)
-            .init();
     }
 
     let conf = Config::builder().region(region).build();
