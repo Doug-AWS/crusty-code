@@ -1,7 +1,8 @@
+use aws_sdk_iam::{Client, Config, Error, Region, PKG_VERSION};
 use aws_types::region;
 use aws_types::region::ProvideRegion;
-//use iam::model::ResourceType;
-use iam::{Client, Config, Error, Region, PKG_VERSION};
+//use serde_json;
+use std::fs;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -14,7 +15,7 @@ struct Opt {
   #[structopt(short, long)]
   account: String,
 
-  /// The name of the bucket
+  /// The name of the bucket.
   #[structopt(short, long)]
   bucket: String,
 
@@ -22,18 +23,23 @@ struct Opt {
   #[structopt(short, long)]
   name: String,
 
+  /// The name of the file containing the policy document.
+  #[structopt(short, long)]
+  policy_file: String,
+
   /// Whether to display additional information.
   #[structopt(short, long)]
   verbose: bool,
 }
 
-/// Creates an IAM role so AWS Config can access an S3 bucket.
+/// Creates an IAM role in the Region.
 ///
 /// # Arguments
 ///
 /// * `-a ACCOUNT-ID` - Your account ID.
 /// * `-b BUCKET` - The name of the bucket where Config stores information about resources.
 /// * `-n NAME` - The name of the role.
+/// * `-p POLICY-NAME` - The name of the JSON file containing the policy document.
 /// * `[-r REGION]` - The Region in which the client is created.
 ///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
@@ -45,6 +51,7 @@ async fn main() -> Result<(), Error> {
     account,
     bucket,
     name,
+    policy_file,
     region,
     verbose,
   } = Opt::from_args();
@@ -55,34 +62,19 @@ async fn main() -> Result<(), Error> {
 
   println!();
 
-  // let doc = String::from("{\"Version\": \"2012-10-17\",\"Statement\": [{\"Sid\": \"AWSConfigBucketPermissionsCheck\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:GetBucketAcl\",\"Resource\": \"arn:aws:s3:::") + &bucket + "\"},{\"Sid\": \"AWSConfigBucketExistenceCheck\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:ListBucket\",\"Resource\": \"arn:aws:s3:::" + &bucket + "\"},{\"Sid\": \"AWSConfigBucketDelivery\",\"Effect\": \"Allow\",\"Principal\": {\"Service\": \"config.amazonaws.com\"},\"Action\": \"s3:PutObject\",\"Resource\": \"arn:aws:s3:::" + &bucket + "/AWSLogs/" + &account + "/Config/*\",\"Condition\": {\"StringEquals\": {\"s3:x-amz-acl\": \"bucket-owner-full-control\"}}}]}";
-
-  let doc = "{
-      \"Version\":\"2012-10-17\",
-      \"Statement\":[
-        {
-          \"Effect\":\"Allow\",
-          \"Principal\":{
-            \"Service\":[\"config.amazonaws.com\"]
-          },
-          \"Action\":[\"sts:AssumeRole\"]
-        }
-        ]
-      }";
-
   if verbose {
     println!("IAM client version: {}", PKG_VERSION);
     println!("Region:             {}", region.region().unwrap().as_ref());
     println!("Account ID:         {}", &account);
     println!("Bucket:             {}", &bucket);
     println!("Role name:          {}", &name);
-    println!("Policy doc:");
-    println!();
-    println!("{}", doc);
-    println!();
-
+    println!("Policy doc filename {}", &policy_file);
     println!();
   }
+
+  // Read policy doc from file as a string
+  let doc = fs::read_to_string(policy_file).expect("Unable to read file");
+  //let doc: serde_json::Value = serde_json::from_str(&data).expect("Unable to parse");
 
   let conf = Config::builder().region(region).build();
   let client = Client::from_conf(conf);
