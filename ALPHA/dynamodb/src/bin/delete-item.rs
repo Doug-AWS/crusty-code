@@ -3,18 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
+use aws_sdk_dynamodb::model::AttributeValue;
+use aws_sdk_dynamodb::{Client, Config, Error, Region, PKG_VERSION};
+use aws_types::region;
 use aws_types::region::ProvideRegion;
-use dynamodb::model::AttributeValue;
-use dynamodb::{Client, Config, Error, Region, PKG_VERSION};
+use std::process;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The default AWS Region.
+    /// The AWS Region.
     #[structopt(short, long)]
-    default_region: Option<String>,
+    region: Option<String>,
 
-    /// The table name.
+    /// The name of the table.
     #[structopt(short, long)]
     table: String,
 
@@ -24,11 +26,11 @@ struct Opt {
 
     /// The value of the item to delete from the table.
     #[structopt(short, long)]
-    item_value: String,
+    value: String,
 
     /// Whether to display additional information.
     #[structopt(short, long)]
-    verbose: bool,
+    info: bool,
 }
 
 /// Deletes an item from an Amazon DynamoDB table.
@@ -37,50 +39,58 @@ struct Opt {
 ///
 /// * `-t TABLE` - The name of the table.
 /// * `-k KEY` - The table's primary key.
-/// * `-i ITEM_VALUE` - The value of the item's primary key.
-/// * `[-d DEFAULT_REGION]` - The Region in which the client is created.
+/// * `-v VALUE` - The value of the item's primary key.
+/// * `[-r REGION]` - The region in which the client is created.
 ///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
-/// * `[-v]` - Whether to display additional information.
+/// * `[-i]` - Whether to display additional information.
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt::init();
 
     let Opt {
-        item_value,
+        info,
         key,
-        default_region,
+        region,
         table,
-        verbose,
+        value,
     } = Opt::from_args();
 
-    let region = default_region
-        .as_ref()
-        .map(|region| Region::new(region.clone()))
-        .or_else(|| aws_types::region::default_provider().region())
-        .unwrap_or_else(|| Region::new("us-west-2"));
+    let region = region::ChainProvider::first_try(region.map(Region::new))
+        .or_default_provider()
+        .or_else(Region::new("us-west-2"));
 
     println!();
 
-    if verbose {
-        println!("DynamoDB version: {}", PKG_VERSION);
-        println!("Region:           {:?}", region);
-        println!("Table:            {}", table);
-        println!("Key:              {}", key);
-        println!("Value:            {}", item_value);
+    if info {
+        println!("DynamoDB client version: {}", PKG_VERSION);
+        println!(
+            "Region:                  {}",
+            region.region().unwrap().as_ref()
+        );
+        println!("Table:                   {}", &table);
+        println!("Key:                     {}", &key);
         println!();
     }
 
     let config = Config::builder().region(region).build();
+
     let client = Client::from_conf(config);
 
-    client
+    match client
         .delete_item()
         .table_name(table)
-        .key(key, AttributeValue::S(item_value))
+        .key(key, AttributeValue::S(value))
         .send()
         .await
-        .expect("Could not delete the item from the table");
+    {
+        Ok(_) => println!("Deleted item from table"),
+        Err(e) => {
+            println!("Got an error deleting item from table:");
+            println!("{}", e);
+            process::exit(1);
+        }
+    };
 
     Ok(())
 }

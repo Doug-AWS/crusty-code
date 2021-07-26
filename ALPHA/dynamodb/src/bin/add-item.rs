@@ -3,39 +3,40 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use aws_types::region::{EnvironmentProvider, ProvideRegion};
-use dynamodb::model::AttributeValue;
-use dynamodb::{Client, Config, Error, Region, PKG_VERSION};
+use aws_sdk_dynamodb::model::AttributeValue;
+use aws_sdk_dynamodb::{Client, Config, Error, Region, PKG_VERSION};
+use aws_types::region;
+use aws_types::region::ProvideRegion;
 use std::process;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The permission type of the user, standard_user or admin
+    /// The permission type of the user, standard_user or admin.
     #[structopt(short, long)]
     p_type: String,
 
-    /// The user's age
+    /// The user's age.
     #[structopt(short, long)]
     age: String,
 
-    /// The user's username
+    /// The user's username.
     #[structopt(short, long)]
     username: String,
 
-    /// The user's first name
+    /// The user's first name.
     #[structopt(short, long)]
     first: String,
 
-    /// The user's last name
+    /// The user's last name.
     #[structopt(short, long)]
     last: String,
 
-    /// The table name
+    /// The table name.
     #[structopt(short, long)]
     table: String,
 
-    /// The default AWS Region
+    /// The AWS Region.
     #[structopt(short, long)]
     region: Option<String>,
 
@@ -54,14 +55,12 @@ struct Opt {
 /// * `-a AGE` - The age of the user.
 /// * `-f FIRST` - The first name of the user.
 /// * `-l LAST` - The last name of the user.
-/// * `[-r REGION]` - The Region in which the table is created.
+/// * `[-r REGION]` - The region in which the table is created.
 ///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt::init();
-
     let Opt {
         table,
         username,
@@ -80,22 +79,25 @@ async fn main() -> Result<(), Error> {
         process::exit(1);
     }
 
-    let region = EnvironmentProvider::new()
-        .region()
-        .or_else(|| region.as_ref().map(|region| Region::new(region.clone())))
-        .unwrap_or_else(|| Region::new("us-west-2"));
+    let region = region::ChainProvider::first_try(region.map(Region::new))
+        .or_default_provider()
+        .or_else(Region::new("us-west-2"));
 
     println!();
 
     if verbose {
-        println!("DynamoDB version: {}", PKG_VERSION);
-        println!("Region:           {:?}", region);
-        println!("Table:            {}", table);
-        println!("User:             {}", username);
-        println!("Type:             {}", p_type);
-        println!("Age:              {}", age);
-        println!("First:            {}", first);
-        println!("Last:             {}", last);
+        println!("DynamoDB client version: {}", PKG_VERSION);
+        println!(
+            "Region:                  {}",
+            region.region().unwrap().as_ref()
+        );
+        println!("Table:  {}", table);
+        println!("User:   {}", username);
+        println!("Type:   {}", p_type);
+        println!("Age:    {}", age);
+        println!("First:  {}", first);
+        println!("Last:   {}\n", last);
+
         println!();
     }
 
@@ -103,25 +105,29 @@ async fn main() -> Result<(), Error> {
 
     let client = Client::from_conf(config);
 
-    let user_av = AttributeValue::S(username);
-    let type_av = AttributeValue::S(p_type);
-    let age_av = AttributeValue::S(age);
-    let first_av = AttributeValue::S(first);
-    let last_av = AttributeValue::S(last);
+    let user_av = AttributeValue::S(String::from(&username));
+    let type_av = AttributeValue::S(String::from(&p_type));
+    let age_av = AttributeValue::S(String::from(&age));
+    let first_av = AttributeValue::S(String::from(&first));
+    let last_av = AttributeValue::S(String::from(&last));
 
-    client
+    let request = client
         .put_item()
         .table_name(table)
         .item("username", user_av)
         .item("account_type", type_av)
         .item("age", age_av)
         .item("first_name", first_av)
-        .item("last_name", last_av)
-        .send()
-        .await
-        .expect("Got an error adding item to table");
+        .item("last_name", last_av);
 
-    println!("Added user.");
+    println!("Executing request [{:?}] to add item...", request);
+
+    request.send().await?;
+
+    println!(
+        "Added user {}, {} {}, age {} as {} user",
+        username, first, last, age, p_type
+    );
 
     Ok(())
 }
