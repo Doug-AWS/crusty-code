@@ -141,16 +141,14 @@ async fn main() -> Result<(), Error> {
         process::exit(1);
     }
 
-    let resource_types: Vec<ResourceType> = vec![ResourceType::Topic];
-
     let rec_group = RecordingGroup::builder()
-        .set_resource_types(Some(resource_types))
+        .resource_types(ResourceType::Topic)
         .build();
 
     let cfg_recorder = ConfigurationRecorder::builder()
         .name(&name)
         .role_arn(iam_arn)
-        .set_recording_group(Some(rec_group))
+        .recording_group(rec_group)
         .build();
 
     client
