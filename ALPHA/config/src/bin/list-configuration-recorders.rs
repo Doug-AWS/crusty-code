@@ -1,6 +1,6 @@
+use aws_sdk_config::{Client, Config, Error, Region, PKG_VERSION};
 use aws_types::region;
 use aws_types::region::ProvideRegion;
-use config::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -35,7 +35,10 @@ async fn main() -> Result<(), Error> {
 
     if verbose {
         println!("Config client version: {}", PKG_VERSION);
-        println!("Region: {}", region.region().unwrap().as_ref());
+        println!(
+            "Region:                {}",
+            region.region().unwrap().as_ref()
+        );
 
         println!();
     }
