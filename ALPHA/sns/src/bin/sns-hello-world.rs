@@ -13,9 +13,13 @@ struct Opt {
     #[structopt(short, long)]
     region: Option<String>,
 
-    /// Specifies the email address to subscribe to the topic.
+    /// The email address to subscribe to the topic.
     #[structopt(short, long)]
     email_address: String,
+
+    /// The ARN of the topic.
+    #[structopt(short, long)]
+    topic_arn: String,
 
     /// Whether to display additional information.
     #[structopt(short, long)]
@@ -28,6 +32,7 @@ struct Opt {
 /// # Arguments
 ///
 /// * `-e EMAIL_ADDRESS` - The email address of a user subscribing to the topic.
+/// * `-t TOPIC_ARN` - The ARN of the topic.
 /// * `[-r REGION]` - The Region in which the client is created.
 ///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
@@ -39,6 +44,7 @@ async fn main() -> Result<(), Error> {
     let Opt {
         region,
         email_address,
+        topic_arn,
         verbose,
     } = Opt::from_args();
 
@@ -55,22 +61,18 @@ async fn main() -> Result<(), Error> {
             region.region().unwrap().as_ref()
         );
         println!("Email address:        {}", &email_address);
+        println!("Topic ARN:            {}", &topic_arn);
         println!();
     }
 
     let conf = Config::builder().region(region).build();
     let client = Client::from_conf(conf);
 
-    let topics = client.list_topics().send().await?;
-    let mut topics = topics.topics.unwrap_or_default();
-    let topic_arn = &topics.pop().unwrap().topic_arn;
-    let topic_string = topic_arn.as_deref().unwrap_or_default();
-
-    println!("Receiving on topic with ARN: `{}`", topic_string);
+    println!("Receiving on topic with ARN: `{}`", topic_arn);
 
     let rsp = client
         .subscribe()
-        .topic_arn(topic_string)
+        .topic_arn(&topic_arn)
         .protocol("email")
         .endpoint(email_address)
         .send()
@@ -80,7 +82,7 @@ async fn main() -> Result<(), Error> {
 
     let rsp = client
         .publish()
-        .topic_arn(topic_string)
+        .topic_arn(&topic_arn)
         .message("hello sns!")
         .send()
         .await?;
