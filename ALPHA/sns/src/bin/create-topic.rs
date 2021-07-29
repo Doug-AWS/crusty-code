@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
+use aws_sdk_sns::{Client, Config, Error, Region, PKG_VERSION};
 use aws_types::region;
 use aws_types::region::ProvideRegion;
-use sns::{Client, Config, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
