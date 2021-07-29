@@ -27,7 +27,7 @@ async fn show_events(reg: String) {
 
     let resp = client.describe_instance_status().send().await;
 
-    println!("Instances in region {}:", reg.clone());
+    println!("Instances in region {}:", reg);
     println!();
 
     for status in resp.unwrap().instance_statuses.unwrap_or_default() {
