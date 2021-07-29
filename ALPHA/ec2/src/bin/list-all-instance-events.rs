@@ -10,7 +10,7 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The AWS Region in which the client is created.
+    /// The AWS Region.
     #[structopt(short, long)]
     region: Option<String>,
 
@@ -55,7 +55,7 @@ async fn show_events(reg: String) {
 /// Lists the events of your EC2 instances in all available regions.
 /// # Arguments
 ///
-/// * `[-r REGION]` - The region in which the client is created.
+/// * `[-r REGION]` - The Region in which the client is created.
 ///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.

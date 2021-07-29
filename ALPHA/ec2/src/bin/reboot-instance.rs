@@ -14,11 +14,11 @@ struct Opt {
     #[structopt(short, long)]
     region: Option<String>,
 
-    /// The ID of the instance to reboot
+    /// The ID of the instance to reboot.
     #[structopt(short, long)]
     instance_id: String,
 
-    /// Whether to display additional information
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Error> {
         .instance_ids(instance_id)
         .send()
         .await?;
-    println!("Rebooted instance");
+    println!("Rebooted instance.");
     println!();
 
     Ok(())

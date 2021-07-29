@@ -58,7 +58,7 @@ async fn main() -> Result<(), Error> {
         .instance_ids(instance_id)
         .send()
         .await?;
-    println!("Stopped instance");
+    println!("Stopped instance.");
     println!();
 
     Ok(())
