@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use aws_types::region::{self, ProvideRegion};
+use aws_sdk_lambda::{Client, Config, Error, Region, PKG_VERSION};
+use aws_types::region;
+use aws_types::region::ProvideRegion;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -12,30 +14,48 @@ struct Opt {
     #[structopt(short, long)]
     region: Option<String>,
 
+    /// Just show runtimes for indicated language.
+    /// dotnet, go, node, java, etc.aws_sdk_lambda
+    #[structopt(short, long)]
+    language: Option<String>,
+
     /// Whether to display additional runtime information.
     #[structopt(short, long)]
     verbose: bool,
 }
 
 /// Lists the Lambda ARNs and runtimes in the given AWS Region.
-async fn show_lambdas(verbose: bool, reg: String) {
+async fn show_lambdas(verbose: bool, language: &str, reg: String) {
     let r = reg.clone();
-    let region = lambda::Region::new(reg);
-    let config = lambda::Config::builder().region(region).build();
-    let client = lambda::Client::from_conf(config);
+    let region = Region::new(reg);
+    let config = Config::builder().region(region).build();
+    let client = Client::from_conf(config);
 
     let resp = client.list_functions().send().await;
     let functions = resp.unwrap().functions.unwrap_or_default();
-    let num_functions = functions.len();
+    let max_functions = functions.len();
+    let mut num_functions = 0;
 
     for function in functions {
-        println!("  ARN:     {}", function.function_arn.unwrap());
-        println!("  Runtime: {:?}", function.runtime.unwrap());
-        println!();
+        let rt_str: String = String::from(function.runtime.unwrap().as_ref());
+        // If language is set (!= ""), show only those with that runtime.
+        let ok = rt_str
+            .to_ascii_lowercase()
+            .contains(&language.to_ascii_lowercase());
+        if ok || language == "" {
+            println!("  ARN:     {}", function.function_arn.unwrap());
+            println!("  Runtime: {}", rt_str);
+            println!();
+
+            num_functions += 1;
+        }
     }
 
     if num_functions > 0 || verbose {
-        println!("Found {} functions in {}.", num_functions, r);
+        println!(
+            "Found {} function(s) (out of {}) in {} region.",
+            num_functions, max_functions, r
+        );
         println!();
     }
 }
@@ -48,33 +68,43 @@ async fn show_lambdas(verbose: bool, reg: String) {
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
-async fn main() -> Result<(), lambda::Error> {
+async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt::init();
-    let Opt { region, verbose } = Opt::from_args();
 
-    let region_provider = region::ChainProvider::first_try(region.map(ec2::Region::new))
+    let Opt {
+        language,
+        region,
+        verbose,
+    } = Opt::from_args();
+
+    let region = region::ChainProvider::first_try(region.map(Region::new))
         .or_default_provider()
-        .or_else(ec2::Region::new("us-west-2"));
+        .or_else(Region::new("us-west-2"));
 
     println!();
 
     if verbose {
-        println!("EC2 client version:    {}", ec2::PKG_VERSION);
-        println!("Lambda client version: {}", lambda::PKG_VERSION);
+        println!("EC2 client version:    {}", aws_sdk_ec2::PKG_VERSION);
+        println!("Lambda client version: {}", PKG_VERSION);
         println!(
             "Region:                {:?}",
-            region_provider.region().unwrap().as_ref()
+            region.region().unwrap().as_ref()
         );
         println!();
     }
 
     // Get list of available regions.
-    let config = ec2::Config::builder().region(region_provider).build();
-    let ec2_client = ec2::Client::from_conf(config);
+    let config = aws_sdk_ec2::Config::builder().region(region).build();
+    let ec2_client = aws_sdk_ec2::Client::from_conf(config);
     let resp = ec2_client.describe_regions().send().await;
 
     for region in resp.unwrap().regions.unwrap_or_default() {
-        show_lambdas(verbose, region.region_name.unwrap()).await;
+        show_lambdas(
+            verbose,
+            language.as_deref().unwrap_or_default(),
+            region.region_name.unwrap(),
+        )
+        .await;
     }
 
     Ok(())

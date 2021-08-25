@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use aws_types::region::{self, ProvideRegion};
-use lambda::model::Runtime;
-use lambda::{Client, Config, Error, Region, PKG_VERSION};
+use aws_sdk_lambda::model::Runtime;
+use aws_sdk_lambda::{Client, Config, Error, Region, PKG_VERSION};
+use aws_types::region;
+use aws_types::region::ProvideRegion;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
