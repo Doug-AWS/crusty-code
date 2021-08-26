@@ -42,7 +42,7 @@ async fn show_lambdas(verbose: bool, language: &str, reg: String) {
         let ok = rt_str
             .to_ascii_lowercase()
             .contains(&language.to_ascii_lowercase());
-        if ok || language == "" {
+        if ok || language.is_empty() {
             println!("  ARN:     {}", function.function_arn.unwrap());
             println!("  Runtime: {}", rt_str);
             println!();
