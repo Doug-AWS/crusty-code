@@ -46,7 +46,7 @@ async fn main() -> Result<(), Error> {
         .or_else(Region::new("us-west-2"));
     println!();
 
-    let region_str: String = String::from(region.region().await.unwrap().as_ref());
+    let region_str: String = region.region().unwrap().as_ref().into();
 
     if verbose {
         println!("S3 client version: {}", PKG_VERSION);
