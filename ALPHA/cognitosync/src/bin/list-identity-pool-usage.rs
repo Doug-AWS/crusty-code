@@ -3,9 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use aws_sdk_cognitosync::{Client, Config, Error, Region, PKG_VERSION};
-use aws_types::region;
-use aws_types::region::ProvideRegion;
+use aws_config::meta::region::RegionProviderChain;
+use aws_sdk_cognitosync::{Client, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -22,7 +21,7 @@ struct Opt {
 /// Lists the identity pools registered with Amazon Cognito in the Region.
 /// # Arguments
 ///
-/// * `[-r REGION]` - The region containing the buckets.
+/// * `[-r REGION]` - The region in which the client is created.
 ///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-g]` - Whether to display buckets in all regions.
@@ -33,23 +32,23 @@ async fn main() -> Result<(), Error> {
 
     let Opt { region, verbose } = Opt::from_args();
 
-    let region = region::ChainProvider::first_try(region.map(Region::new))
+    let region_provider = RegionProviderChain::first_try(region.map(Region::new))
         .or_default_provider()
         .or_else(Region::new("us-west-2"));
-
     println!();
 
     if verbose {
         println!("Cognito client version: {}", PKG_VERSION);
         println!(
             "Region:                 {}",
-            region.region().unwrap().as_ref()
+            region_provider.region().await.unwrap().as_ref()
         );
+
         println!();
     }
 
-    let config = Config::builder().region(region).build();
-    let client = Client::from_conf(config);
+    let shared_config = aws_config::from_env().region(region_provider).load().await;
+    let client = Client::new(&shared_config);
 
     let response = client
         .list_identity_pool_usage()
@@ -81,7 +80,7 @@ async fn main() -> Result<(), Error> {
         }
     }
 
-    println!("Next token: {:?}", response.next_token);
+    println!("Next token: {}", response.next_token.unwrap_or_default());
 
     Ok(())
 }
