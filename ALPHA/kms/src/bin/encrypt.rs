@@ -3,17 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use aws_types::region::ProvideRegion;
-use kms::{Blob, Client, Config, Error, Region, PKG_VERSION};
+use aws_config::meta::region::RegionProviderChain;
+use aws_sdk_kms::{Blob, Client, Error, Region, PKG_VERSION};
 use std::fs::File;
 use std::io::Write;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The default AWS Region.
+    /// The AWS Region.
     #[structopt(short, long)]
-    default_region: Option<String>,
+    region: Option<String>,
 
     /// The encryption key.
     #[structopt(short, long)]
@@ -36,9 +36,9 @@ struct Opt {
 /// # Arguments
 ///
 /// * `-k KEY` - The KMS key.
-/// * `-o OUT-FILE` - The name of the file to store the encryped key in.
+/// * `-o OUT-FILE` - The name of the file to store the encrypted key in.
 /// * `-t TEXT` - The string to encrypt.
-/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+/// * `[-r REGION]` - The Region in which the client is created.
 ///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
@@ -49,30 +49,30 @@ async fn main() -> Result<(), Error> {
     let Opt {
         key,
         out_file,
-        default_region,
+        region,
         text,
         verbose,
     } = Opt::from_args();
 
-    let region = default_region
-        .as_ref()
-        .map(|region| Region::new(region.clone()))
-        .or_else(|| aws_types::region::default_provider().region())
-        .unwrap_or_else(|| Region::new("us-west-2"));
-
+    let region_provider = RegionProviderChain::first_try(region.map(Region::new))
+        .or_default_provider()
+        .or_else(Region::new("us-west-2"));
     println!();
 
     if verbose {
-        println!("KMS version: {}", PKG_VERSION);
-        println!("Region:      {:?}", &region);
-        println!("Key:         {}", &key);
-        println!("Text:        {}", &text);
-        println!("Output file: {}", &out_file);
+        println!("KMS client version: {}", PKG_VERSION);
+        println!(
+            "Region:             {}",
+            region_provider.region().await.unwrap().as_ref()
+        );
+        println!("Key:                {}", &key);
+        println!("Text:               {}", &text);
+        println!("Output file:        {}", &out_file);
         println!();
     }
 
-    let conf = Config::builder().region(region).build();
-    let client = Client::from_conf(conf);
+    let shared_config = aws_config::from_env().region(region_provider).load().await;
+    let client = Client::new(&shared_config);
 
     let blob = Blob::new(text.as_bytes());
 

@@ -3,16 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0.
  */
 
-use aws_types::region::ProvideRegion;
-use kms::{Blob, Client, Config, Error, Region, PKG_VERSION};
+use aws_config::meta::region::RegionProviderChain;
+use aws_sdk_kms::{Blob, Client, Error, Region, PKG_VERSION};
 use std::fs;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    /// The default AWS Region.
+    /// The AWS Region.
     #[structopt(short, long)]
-    default_region: Option<String>,
+    region: Option<String>,
 
     /// The encryption key.
     #[structopt(short, long)]
@@ -22,7 +22,7 @@ struct Opt {
     #[structopt(short, long)]
     input_file: String,
 
-    /// Whether to display additonal informmation.
+    /// Whether to display additional information.
     #[structopt(short, long)]
     verbose: bool,
 }
@@ -32,7 +32,7 @@ struct Opt {
 ///
 /// * `-k KEY` - The encryption key.
 /// * `-i INPUT-FILE` - The name of the file containing the encrypted string.
-/// * `[-d DEFAULT-REGION]` - The Region in which the client is created.
+/// * `[-r REGION]` - The Region in which the client is created.
 ///    If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
@@ -43,28 +43,28 @@ async fn main() -> Result<(), Error> {
     let Opt {
         key,
         input_file,
-        default_region,
+        region,
         verbose,
     } = Opt::from_args();
 
-    let region = default_region
-        .as_ref()
-        .map(|region| Region::new(region.clone()))
-        .or_else(|| aws_types::region::default_provider().region())
-        .unwrap_or_else(|| Region::new("us-west-2"));
-
+    let region_provider = RegionProviderChain::first_try(region.map(Region::new))
+        .or_default_provider()
+        .or_else(Region::new("us-west-2"));
     println!();
 
     if verbose {
-        println!("KMS version: {}", PKG_VERSION);
-        println!("Region:      {:?}", &region);
-        println!("Key:         {}", &key);
-        println!("Input:       {}", &input_file);
+        println!("KMS client version: {}", PKG_VERSION);
+        println!(
+            "Region:             {}",
+            region_provider.region().await.unwrap().as_ref()
+        );
+        println!("Key:                {}", &key);
+        println!("Input:              {}", &input_file);
         println!();
     }
 
-    let conf = Config::builder().region(region).build();
-    let client = Client::from_conf(conf);
+    let shared_config = aws_config::from_env().region(region_provider).load().await;
+    let client = Client::new(&shared_config);
 
     // Open input text file and get contents as a string
     // input is a base-64 encoded string, so decode it:
