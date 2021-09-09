@@ -7,8 +7,8 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rdsdata = {package = "aws-sdk-rdsdata", path = "../../build/aws-sdk/rdsdata"}
-aws-types = { path = "../../build/aws-sdk/aws-types" }
+aws-config = { path = "../../build/aws-sdk/aws-config" }
+aws-sdk-rdsdata = {package = "aws-sdk-rdsdata", path = "../../build/aws-sdk/rdsdata"}
 tokio = {version = "1", features = ["full"]}
 structopt = { version = "0.3", default-features = false }
 tracing-subscriber = { version = "0.2.16", features = ["fmt"] }
