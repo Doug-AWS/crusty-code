@@ -2,6 +2,7 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0.
  */
+
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_batch::{Client, Error, Region, PKG_VERSION};
 use structopt::StructOpt;
@@ -17,17 +18,16 @@ struct Opt {
     verbose: bool,
 }
 
-/// Lists the names and the ARNs of your batch compute environments in a Region.
+/// Lists the names and the ARNs of your AWS Batch compute environments in the Region.
 /// # Arguments
 ///
 /// * `[-r REGION]` - The Region in which the client is created.
 ///   If not supplied, uses the value of the **AWS_REGION** environment variable.
 ///   If the environment variable is not set, defaults to **us-west-2**.
-/// * `[-v]` - Whether to display information.
+/// * `[-v]` - Whether to display additional information.
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt::init();
-
     let Opt { region, verbose } = Opt::from_args();
 
     let region_provider = RegionProviderChain::first_try(region.map(Region::new))
@@ -42,16 +42,17 @@ async fn main() -> Result<(), Error> {
             "Region:               {}",
             region_provider.region().await.unwrap().as_ref()
         );
+
         println!();
     }
 
     let shared_config = aws_config::from_env().region(region_provider).load().await;
     let client = Client::new(&shared_config);
+
     let rsp = client.describe_compute_environments().send().await?;
 
     let compute_envs = rsp.compute_environments.unwrap_or_default();
     println!("Found {} compute environments:", compute_envs.len());
-
     for env in compute_envs {
         let arn = env.compute_environment_arn.as_deref().unwrap_or_default();
         let name = env.compute_environment_name.as_deref().unwrap_or_default();
