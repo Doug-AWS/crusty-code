@@ -30,7 +30,7 @@ struct Opt {
 
 const CHUNK_SIZE: usize = 8192;
 
-/// Converts an audio file to text.
+/// Transcribes an audio file to text.
 /// # Arguments
 ///
 /// * `-a AUDIO_FILE` - The name of the audio file.
