@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 aws-config = { path = "../../build/aws-sdk/aws-config" }
 aws-sdk-transcribestreaming = { package = "aws-sdk-transcribestreaming", path = "../../build/aws-sdk/transcribestreaming" }
-aws-types = { path = "../../build/aws-sdk/aws-types" }
 async-stream = "0.3"
 bytes = "1"
 hound = "3.4"
