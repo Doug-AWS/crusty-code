@@ -39,6 +39,8 @@ async fn update_group(
         .send()
         .await?;
 
+    println!("Updated AutoScaling group");
+
     Ok(())
 }
 
@@ -83,19 +85,4 @@ async fn main() -> Result<(), Error> {
 
     update_group(&client, &autoscaling_name, max_size)
         .await
-        .unwrap();
-
-    println!("Updated AutoScaling group");
-    Ok(())
-}
-
-#[actix_rt::test]
-async fn test_update_group() {
-    let shared_config = aws_config::load_from_env().await;
-    let client = Client::new(&shared_config);
-
-    client
-        .update_auto_scaling_group()
-        .auto_scaling_group_name("name")
-        .max_size(32);
 }

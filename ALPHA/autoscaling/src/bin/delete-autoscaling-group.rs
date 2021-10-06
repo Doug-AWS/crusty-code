@@ -39,6 +39,8 @@ async fn delete_group(
         .send()
         .await?;
 
+    println!("Deleted Auto Scaling group");
+
     Ok(())
 }
 
@@ -85,20 +87,4 @@ async fn main() -> Result<(), Error> {
 
     delete_group(&client, &autoscaling_name, force)
         .await
-        .unwrap();
-
-    println!("Deleted Auto Scaling group");
-
-    Ok(())
-}
-
-#[actix_rt::test]
-async fn test_delete_group() {
-    let shared_config = aws_config::load_from_env().await;
-    let client = Client::new(&shared_config);
-
-    client
-        .delete_auto_scaling_group()
-        .auto_scaling_group_name("name")
-        .set_force_delete(Some(true));
 }

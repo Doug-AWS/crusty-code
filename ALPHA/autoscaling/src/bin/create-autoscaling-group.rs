@@ -88,20 +88,4 @@ async fn main() -> Result<(), Error> {
 
     create_group(&client, &autoscaling_name, &instance_id)
         .await
-        .unwrap();
-
-    Ok(())
-}
-
-#[actix_rt::test]
-async fn test_create_group() {
-    let shared_config = aws_config::load_from_env().await;
-    let client = Client::new(&shared_config);
-
-    client
-        .create_auto_scaling_group()
-        .auto_scaling_group_name("random")
-        .instance_id("id")
-        .min_size(1)
-        .max_size(5);
 }
