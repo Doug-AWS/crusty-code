@@ -6,6 +6,7 @@
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_ses::model::{Body, Content, Destination, EmailContent, Message};
 use aws_sdk_ses::{Client, Error, Region, PKG_VERSION};
+
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -16,7 +17,7 @@ struct Opt {
 
     /// The AWS Region.
     #[structopt(short, long)]
-    region: Option<String>,
+    default_region: Option<String>,
 
     /// The email address of the sender.
     #[structopt(short, long)]
@@ -29,48 +30,41 @@ struct Opt {
     /// The subject of the email.
     #[structopt(short, long)]
     subject: String,
-
-    /// Whether to display additional information.
+    /// Whether to display additional runtime information
     #[structopt(short, long)]
     verbose: bool,
 }
 
-/// Sends a message to the email addresses in the contact list in the Region.
+/// Sends a message to the email addresses in the contact list.
 /// # Arguments
 ///
 /// * `-f FROM-ADDRESS` - The email address of the sender.
 /// * `-m MESSAGE` - The email message that is sent.
 /// * `-s SUBJECT` - The subject of the email message.
 /// * `-c CONTACT-LIST` - The contact list with the email addresses of the recepients.
-/// * `[-r REGION]` - The Region in which the client is created.
-///    If not supplied, uses the value of the **AWS_REGION** environment variable.
+/// * `[-d DEFAULT-REGION]` - The region in which the client is created.
+///    If not supplied, uses the value of the **AWS_DEFAULT_REGION** environment variable.
 ///    If the environment variable is not set, defaults to **us-west-2**.
 /// * `[-v]` - Whether to display additional information.
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt::init();
-
     let Opt {
         contact_list,
-        region,
+        default_region,
         from_address,
         message,
         subject,
         verbose,
     } = Opt::from_args();
 
-    let region_provider = RegionProviderChain::first_try(region.map(Region::new))
+    let region_provider = RegionProviderChain::first_try(default_region.map(Region::new))
         .or_default_provider()
         .or_else(Region::new("us-west-2"));
-
-    println!();
+    let shared_config = aws_config::from_env().region(region_provider).load().await;
 
     if verbose {
         println!("SES client version: {}", PKG_VERSION);
-        println!(
-            "Region:             {}",
-            region_provider.region().await.unwrap().as_ref()
-        );
+        println!("Region:             {:?}", shared_config.region().unwrap());
         println!("From address:       {}", &from_address);
         println!("Contact list:       {}", &contact_list);
         println!("Subject:            {}", &subject);
@@ -78,7 +72,6 @@ async fn main() -> Result<(), Error> {
         println!();
     }
 
-    let shared_config = aws_config::from_env().region(region_provider).load().await;
     let client = Client::new(&shared_config);
 
     // Get list of email addresses from contact list.
@@ -86,9 +79,9 @@ async fn main() -> Result<(), Error> {
         .list_contacts()
         .contact_list_name(contact_list)
         .send()
-        .await?;
+        .await;
 
-    let contacts = resp.contacts.unwrap_or_default();
+    let contacts = resp.unwrap().contacts.unwrap_or_default();
 
     let cs: String = contacts
         .into_iter()
@@ -107,15 +100,19 @@ async fn main() -> Result<(), Error> {
 
     let email_content = EmailContent::builder().simple(msg).build();
 
-    client
+    match client
         .send_email()
         .from_email_address(from_address)
         .destination(dest)
         .content(email_content)
         .send()
-        .await?;
-
-    println!("Email sent to list");
+        .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            println!("Got an error sending email: {}", e);
+        }
+    }
 
     Ok(())
 }
